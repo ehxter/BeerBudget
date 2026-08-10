@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui";
 import { Converter } from "./Converter";
 import { ExchangeList } from "./ExchangeList";
 
-export const metadata = { title: "Exchange · Istanbul" };
+export const metadata = { title: "Exchange · Koskalak Planner" };
 export const dynamic = "force-dynamic";
 
 export default async function ExchangePage() {

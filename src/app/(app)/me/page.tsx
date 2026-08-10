@@ -7,7 +7,7 @@ import { BudgetTracker } from "./BudgetTracker";
 import { PrivateNotes } from "./PrivateNotes";
 import { Vault } from "./Vault";
 
-export const metadata = { title: "Me · Istanbul" };
+export const metadata = { title: "Me · Koskalak Planner" };
 export const dynamic = "force-dynamic";
 
 export default async function MePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {

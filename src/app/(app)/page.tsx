@@ -17,7 +17,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
-export const metadata = { title: "Istanbul" };
+export const metadata = { title: "Koskalak Planner" };
 // The dashboard reflects data that changes on every expense; never cache it.
 export const dynamic = "force-dynamic";
 

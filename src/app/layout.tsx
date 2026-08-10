@@ -9,12 +9,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Istanbul",
-  description: "Trip companion — budget, expenses, settlement and itinerary.",
+  title: "Koskalak Planner",
+  description: "Your trip, synced.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Istanbul",
+    title: "Koskalak Planner",
     statusBarStyle: "black-translucent",
   },
   formatDetection: { telephone: false },

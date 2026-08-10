@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardLabel } from "@/components/ui";
 import { SignOutButton } from "@/components/SignOutButton";
 
-export const metadata = { title: "Setup · Istanbul" };
+export const metadata = { title: "Setup · Koskalak Planner" };
 
 /**
  * Shown when the signed-in account has no trip to look at — either the seed

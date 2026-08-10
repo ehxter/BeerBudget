@@ -1,7 +1,7 @@
 {
-  "name": "KOSKALAK",
-  "short_name": "KOSKALAK",
-  "description": "Istanbul Trip Companion",
+  "name": "Koskalak Planner",
+  "short_name": "Koskalak",
+  "description": "Koskalak Planner",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#121212",

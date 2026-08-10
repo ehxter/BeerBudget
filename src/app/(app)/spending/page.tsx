@@ -8,7 +8,7 @@ import { EXPENSE_CATEGORIES, emojiFor } from "@/lib/constants";
 import { Card, EmptyState, PageHeader, Badge } from "@/components/ui";
 import { ExpenseActions } from "./ExpenseActions";
 
-export const metadata = { title: "Spending · Istanbul" };
+export const metadata = { title: "Spending · Koskalak Planner" };
 export const dynamic = "force-dynamic";
 
 export default async function SpendingPage() {

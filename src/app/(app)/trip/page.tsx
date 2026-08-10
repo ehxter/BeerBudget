@@ -6,7 +6,7 @@ import { Checklist } from "./Checklist";
 import { ItineraryList } from "./ItineraryList";
 import { SharedInfo } from "./SharedInfo";
 
-export const metadata = { title: "Trip · Istanbul" };
+export const metadata = { title: "Trip · Koskalak Planner" };
 export const dynamic = "force-dynamic";
 
 export default async function TripPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {

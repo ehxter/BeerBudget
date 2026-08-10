@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/ui";
 import { type CurrencyCode } from "@/lib/money";
 import { LogExchangeForm } from "./LogExchangeForm";
 
-export const metadata = { title: "Log Exchange · Istanbul" };
+export const metadata = { title: "Log Exchange · Koskalak Planner" };
 export const dynamic = "force-dynamic";
 
 export default async function NewExchangePage() {

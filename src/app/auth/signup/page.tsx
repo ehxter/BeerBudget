@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { SignUpForm } from "./SignUpForm";
 import { Card } from "@/components/ui";
 
-export const metadata = { title: "Create account · Istanbul" };
+export const metadata = { title: "Create account · Koskalak Planner" };
 
 export default async function SignUpPage() {
   if (await getCurrentUser()) redirect("/");
