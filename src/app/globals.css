@@ -1,26 +1,144 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Dark-only, mobile-only. There is no light theme by design — the app is used
+ * one-handed while walking around a city, mostly in the evening.
+ */
+@theme {
+  --color-canvas: #08080a;
+  --color-surface: #121216;
+  --color-surface-2: #1a1a20;
+  --color-surface-3: #23232b;
+  --color-line: #26262e;
+  --color-line-strong: #34343e;
+
+  --color-ink: #f5f5f6;
+  --color-ink-muted: #a1a1ab;
+  --color-ink-faint: #6e6e79;
+
+  /* Brand accent — Istanbul gold. Used for primary actions and the active tab. */
+  --color-accent: #e6b23c;
+  --color-accent-soft: #2a2214;
+  --color-accent-ink: #1a1408;
+
+  /* Money semantics: money coming to you vs money going out. */
+  --color-positive: #34d399;
+  --color-positive-soft: #10261f;
+  --color-negative: #fb7185;
+  --color-negative-soft: #2a1319;
+  --color-warn: #fbbf24;
+  --color-warn-soft: #2a2114;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 1rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background-color: var(--color-canvas);
+  color-scheme: dark;
+  /* Stop iOS from rubber-banding the whole document behind the fixed nav. */
+  overscroll-behavior-y: none;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Tabular figures everywhere money is shown, so digits don't jitter as
+   amounts change. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Remove the number-input spinners — amounts are typed on a numeric keypad. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Native-feeling tap behaviour: no blue flash, no accidental text selection
+   on controls, but keep selection available in content. */
+button,
+a,
+label,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-sheet-in {
+  animation: sheet-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out both;
+}
+
+/* Bar-grow for the budget burndown and category charts. */
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.animate-grow-x {
+  transform-origin: left;
+  animation: grow-x 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }

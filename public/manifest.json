@@ -1,0 +1,16 @@
+{
+  "name": "KOSKALAK",
+  "short_name": "KOSKALAK",
+  "description": "Istanbul Trip Companion",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "192x192",
+      "type": "image/x-icon"
+    }
+  ]
+}

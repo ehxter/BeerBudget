@@ -1,0 +1,284 @@
+// Istanbul Trip Companion — single-trip, two-person schema.
+//
+// Money is ALWAYS stored as an integer in the currency's minor unit
+// (TRY/USD/EUR = 1/100, TOMAN = 1/1). Never store money as a float.
+// Amounts that need to be aggregated across currencies also carry a
+// pre-computed `base*Minor` in the trip's base currency, converted with the
+// rate that was in effect when the row was written — so historical totals
+// don't shift when today's rate moves.
+//
+// Iranian currency is represented as TOMAN everywhere (1 Toman = 10 IRR).
+// IRR never appears in the database, the API, or the UI.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  memberships    TripMember[]
+  expensesPaid   Expense[]             @relation("ExpensePayer")
+  expenseShares  ExpenseParticipant[]
+  exchanges      ExchangeTransaction[]
+  budgets        Budget[]
+  privateNotes   PrivateNote[]
+  vaultItems     PrivateVaultItem[]
+  vaultFiles     VaultFile[]
+  checkedItems   ChecklistItem[]       @relation("ChecklistCompleter")
+}
+
+model Trip {
+  id           String   @id @default(cuid())
+  name         String
+  destination  String   @default("Istanbul, Turkey")
+  startDate    DateTime
+  endDate      DateTime
+  baseCurrency String   @default("TRY")
+  budgetMinor  Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  members    TripMember[]
+  expenses   Expense[]
+  exchanges  ExchangeTransaction[]
+  itinerary  ItineraryItem[]
+  places     Place[]
+  checklist  ChecklistItem[]
+  sharedInfo SharedInfo[]
+  budgets    Budget[]
+}
+
+model TripMember {
+  id       String   @id @default(cuid())
+  userId   String
+  tripId   String
+  joinedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tripId])
+  @@index([tripId])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  tripId      String
+  paidById    String
+  description String
+  category    String
+  // Amount as entered, in `currency`.
+  amountMinor Int
+  currency    String
+  // Same amount in the trip's base currency, frozen at the rate below.
+  baseAmountMinor Int
+  rateToBase      Float
+  spentAt     DateTime @default(now())
+  // Private expenses are visible only to `paidById` and count against that
+  // user's personal budget. Shared expenses count against the trip budget.
+  isShared    Boolean  @default(true)
+  splitMethod String   @default("EQUAL") // EQUAL | CUSTOM | SINGLE
+  note        String?
+  createdAt   DateTime @default(now())
+
+  trip         Trip                 @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  paidBy       User                 @relation("ExpensePayer", fields: [paidById], references: [id], onDelete: Cascade)
+  participants ExpenseParticipant[]
+
+  @@index([tripId, spentAt])
+  @@index([tripId, isShared])
+  @@index([paidById])
+}
+
+model ExpenseParticipant {
+  id        String @id @default(cuid())
+  expenseId String
+  userId    String
+  // This participant's share, in the expense's currency and in base currency.
+  shareMinor     Int
+  baseShareMinor Int
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId])
+  @@index([userId])
+}
+
+// Cached reference rates, anchored to Toman because that is the unit the
+// upstream provider quotes everything in. A cross rate between any two
+// currencies is tomanPerUnit[from] / tomanPerUnit[to].
+model ExchangeRate {
+  id           String   @id @default(cuid())
+  currency     String
+  tomanPerUnit Float
+  source       String // BRSAPI | MANUAL
+  fetchedAt    DateTime @default(now())
+
+  @@unique([currency, source])
+}
+
+// A currency exchange the traveler actually performed, at a real shop rate.
+model ExchangeTransaction {
+  id              String   @id @default(cuid())
+  tripId          String
+  userId          String
+  fromCurrency    String
+  toCurrency      String
+  fromAmountMinor Int
+  toAmountMinor   Int
+  // Units of toCurrency received per 1 unit of fromCurrency.
+  effectiveRate   Float
+  location        String?
+  note            String?
+  occurredAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, occurredAt])
+}
+
+model ItineraryItem {
+  id                 String   @id @default(cuid())
+  tripId             String
+  title              String
+  day                DateTime
+  startTime          String? // "HH:MM" local, no timezone maths needed
+  endTime            String?
+  location           String?
+  notes              String?
+  estimatedCostMinor Int?
+  estimatedCostCurrency String?
+  category           String   @default("OTHER") // FOOD | ACTIVITY | TRANSPORT | SHOPPING | OTHER
+  placeId            String?
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+
+  trip  Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  place Place? @relation(fields: [placeId], references: [id], onDelete: SetNull)
+
+  @@index([tripId, day, sortOrder])
+}
+
+model Place {
+  id                    String   @id @default(cuid())
+  tripId                String
+  name                  String
+  category              String   @default("OTHER") // RESTAURANT | CAFE | ATTRACTION | SHOPPING | NEIGHBORHOOD | ACTIVITY | OTHER
+  address               String?
+  mapUrl                String?
+  notes                 String?
+  estimatedPriceMinor   Int?
+  estimatedPriceCurrency String?
+  status                String   @default("WANT_TO_VISIT") // WANT_TO_VISIT | PLANNED | VISITED
+  createdAt             DateTime @default(now())
+
+  trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  itineraryItems ItineraryItem[]
+
+  @@index([tripId, status])
+}
+
+model ChecklistItem {
+  id            String    @id @default(cuid())
+  tripId        String
+  title         String
+  isDone        Boolean   @default(false)
+  completedById String?
+  completedAt   DateTime?
+  sortOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
+
+  trip        Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  completedBy User? @relation("ChecklistCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+
+  @@index([tripId, sortOrder])
+}
+
+model SharedInfo {
+  id        String   @id @default(cuid())
+  tripId    String
+  category  String   @default("OTHER") // HOTEL | FLIGHT | TRANSPORT | EMERGENCY | RESERVATION | OTHER
+  title     String
+  content   String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, sortOrder])
+}
+
+// Personal (private) budget — one per user per trip, never visible to the
+// other traveler.
+model Budget {
+  id          String @id @default(cuid())
+  userId      String
+  tripId      String
+  amountMinor Int
+  currency    String @default("USD")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tripId])
+}
+
+model PrivateNote {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+}
+
+model PrivateVaultItem {
+  id        String   @id @default(cuid())
+  userId    String
+  category  String   @default("OTHER") // PASSPORT | ID | FLIGHT | HOTEL | INSURANCE | CONTACT | SIM | BOOKING | OTHER
+  title     String
+  content   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files VaultFile[]
+
+  @@index([userId, updatedAt])
+}
+
+// Uploaded documents live outside the web root; `storedName` is a random
+// filename on disk. Downloads go through an authenticated route that checks
+// `userId` before streaming the file.
+model VaultFile {
+  id          String   @id @default(cuid())
+  vaultItemId String
+  userId      String
+  filename    String
+  storedName  String   @unique
+  mimeType    String
+  sizeBytes   Int
+  createdAt   DateTime @default(now())
+
+  vaultItem PrivateVaultItem @relation(fields: [vaultItemId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([vaultItemId])
+}

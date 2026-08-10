@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KOSKALAK - Istanbul Trip Companion
 
-## Getting Started
+A mobile-only web application built to manage a 2-person trip to Istanbul.
+Track shared and personal budgets, manage itineraries, convert currency, and safely store private documents.
 
-First, run the development server:
+## Tech Stack
+- Next.js (App Router)
+- React, Tailwind CSS
+- Prisma ORM + PostgreSQL
+- NextAuth.js
 
+## VPS Deployment Instructions
+
+This application is designed to be deployed to a standard Linux VPS using PM2.
+
+### 1. Prerequisites
+- Node.js (v18+)
+- PM2 (`npm install -g pm2`)
+- A PostgreSQL database (can be local on the VPS or hosted like Neon/Supabase)
+
+### 2. Setup
+
+Clone the repository to your VPS:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <your-repo-url> koskalak
+cd koskalak
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Copy the example environment variables:
+```bash
+cp .env.example .env
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Edit `.env` and configure your `DATABASE_URL` and `NEXTAUTH_SECRET`:
+```bash
+nano .env
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Database Migration
+Apply the schema to your PostgreSQL database:
+```bash
+npx prisma migrate deploy
+```
 
-## Learn More
+### 4. Build
+Build the Next.js production app:
+```bash
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 5. Start with PM2
+Start the application using the provided ecosystem config:
+```bash
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Your KOSKALAK instance is now running in the background! Configure Nginx or Caddy to reverse-proxy port `3000` to your domain.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+- `/src/app/` - Next.js Pages and Layouts (Home, Spending, Trip, Exchange, Me, Auth)
+- `/src/components/` - Shared UI components like `BottomNav`
+- `/src/lib/` - Utilities (Currency API client, Prisma instance, NextAuth config)
+- `prisma/schema.prisma` - Database structure for Users, Trips, Expenses, and Private Vault.
