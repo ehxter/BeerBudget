@@ -10,7 +10,7 @@ export function SignUpForm() {
   const [state, formAction] = useActionState(signUp, initialState);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="flex flex-col gap-4">
       <FormError>{state.error}</FormError>
 
       <Field label="Name">
@@ -40,7 +40,7 @@ export function SignUpForm() {
         />
       </Field>
 
-      <SubmitButton size="lg" className="w-full" pendingLabel="Creating…">
+      <SubmitButton size="block" className="mt-2" pendingLabel="Creating…">
         Create account
       </SubmitButton>
     </form>

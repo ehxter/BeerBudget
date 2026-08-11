@@ -1,18 +1,18 @@
 import { requireTripContext } from "@/lib/trip";
-import { PageHeader } from "@/components/ui";
-import { type CurrencyCode } from "@/lib/money";
+import { getRateTable } from "@/lib/rates/store";
+import { Screen } from "@/components/ui";
 import { LogExchangeForm } from "./LogExchangeForm";
 
-export const metadata = { title: "Log Exchange · Koskalak Planner" };
+export const metadata = { title: "Log exchange · Istanbul" };
 export const dynamic = "force-dynamic";
 
 export default async function NewExchangePage() {
   const { trip } = await requireTripContext();
+  const rates = await getRateTable();
 
   return (
-    <div className="animate-rise space-y-4">
-      <PageHeader title="Log Exchange" back="/exchange" />
-      <LogExchangeForm baseCurrency={trip.baseCurrency as CurrencyCode} />
-    </div>
+    <Screen back="/exchange" title="Log Exchange" gap={4} className="animate-rise">
+      <LogExchangeForm baseCurrency={trip.baseCurrency} tomanPerUnit={rates.tomanPerUnit} />
+    </Screen>
   );
 }

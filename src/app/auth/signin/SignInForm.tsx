@@ -10,7 +10,7 @@ export function SignInForm() {
   const [state, formAction] = useActionState(signIn, initialState);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="flex flex-col gap-4">
       <FormError>{state.error}</FormError>
 
       <Field label="Email">
@@ -35,7 +35,7 @@ export function SignInForm() {
         />
       </Field>
 
-      <SubmitButton size="lg" className="w-full" pendingLabel="Signing in…">
+      <SubmitButton size="block" className="mt-2" pendingLabel="Signing in…">
         Sign in
       </SubmitButton>
     </form>

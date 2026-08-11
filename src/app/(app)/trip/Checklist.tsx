@@ -1,79 +1,119 @@
 "use client";
 
-import { useTransition, useRef } from "react";
+import { useOptimistic, useRef, useTransition } from "react";
 import { Check, Plus } from "lucide-react";
-import { Card, Input } from "@/components/ui";
+import { Input, EmptyState, SectionHeader } from "@/components/ui";
 import { toggleChecklistItem, addChecklistItem } from "./actions";
 import { cn } from "@/lib/cn";
 
-type ChecklistProps = {
-  items: {
-    id: string;
-    title: string;
-    isDone: boolean;
-  }[];
+type Item = {
+  id: string;
+  title: string;
+  isDone: boolean;
+  completedBy: { name: string } | null;
 };
 
-export function Checklist({ items }: ChecklistProps) {
-  const [isPending, startTransition] = useTransition();
+export function Checklist({ items }: { items: Item[] }) {
+  const [, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
 
-  function handleToggle(id: string, currentIsDone: boolean) {
-    startTransition(() => {
-      toggleChecklistItem(id, !currentIsDone);
+  // Optimistic so a tap feels instant. Previously every row dimmed on any
+  // toggle, which made one tap look like the whole list reloading.
+  const [optimisticItems, setOptimistic] = useOptimistic(
+    items,
+    (current: Item[], id: string) =>
+      current.map((item) =>
+        item.id === id ? { ...item, isDone: !item.isDone } : item,
+      ),
+  );
+
+  function handleToggle(item: Item) {
+    startTransition(async () => {
+      setOptimistic(item.id);
+      await toggleChecklistItem(item.id, !item.isDone);
     });
   }
 
   async function handleAdd(formData: FormData) {
-    await addChecklistItem({}, formData);
     formRef.current?.reset();
+    await addChecklistItem({}, formData);
   }
 
-  return (
-    <Card className="space-y-4">
-      <div className="space-y-1">
-        {items.map((item) => (
-          <label
-            key={item.id}
-            className={cn(
-              "flex items-center gap-3 py-2 transition-opacity",
-              isPending && "opacity-70"
-            )}
-          >
-            <div className="relative flex items-center justify-center">
-              <input
-                type="checkbox"
-                checked={item.isDone}
-                onChange={() => handleToggle(item.id, item.isDone)}
-                className="peer h-5 w-5 appearance-none rounded border border-ink-muted/30 bg-transparent checked:border-brand checked:bg-brand focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-1 focus:ring-offset-surface"
-              />
-              <Check
-                size={14}
-                strokeWidth={3}
-                className="pointer-events-none absolute text-surface opacity-0 peer-checked:opacity-100"
-              />
-            </div>
-            <span
-              className={cn(
-                "text-sm font-medium transition-colors",
-                item.isDone ? "text-ink-faint line-through" : "text-ink"
-              )}
-            >
-              {item.title}
-            </span>
-          </label>
-        ))}
-      </div>
+  const done = optimisticItems.filter((item) => item.isDone).length;
 
-      <form ref={formRef} action={handleAdd} className="flex gap-2 pt-2 border-t border-surface-2">
-        <Input name="title" placeholder="Add new item..." className="h-9 text-sm" required />
+  return (
+    <div className="flex flex-col gap-2.5">
+      {optimisticItems.length === 0 ? (
+        <EmptyState
+          icon={<span className="text-base">☑</span>}
+          title="Nothing on the list"
+          description="Add what you need to sort out before or during the trip."
+        />
+      ) : (
+        <>
+          <SectionHeader
+            label="Checklist"
+            value={`${done} of ${optimisticItems.length} done`}
+          />
+
+          <div className="flex flex-col gap-2">
+            {optimisticItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleToggle(item)}
+                className="flex w-full items-center gap-3 rounded-card bg-card p-4 text-left active:bg-track"
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors",
+                    item.isDone
+                      ? "border-action bg-action text-action-ink"
+                      : "border-line",
+                  )}
+                >
+                  {item.isDone ? <Check size={13} strokeWidth={3} /> : null}
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={cn(
+                      "block truncate text-row transition-colors",
+                      item.isDone ? "text-ink-4 line-through" : "text-ink",
+                    )}
+                  >
+                    {item.title}
+                  </span>
+                  {/* Both travelers can see who ticked an item off. */}
+                  {item.isDone && item.completedBy ? (
+                    <span className="mt-0.5 block truncate text-label text-ink-5">
+                      {item.completedBy.name}
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <form ref={formRef} action={handleAdd} className="mt-2 flex gap-2">
+        <Input
+          name="title"
+          placeholder="Add an item"
+          required
+          maxLength={120}
+          autoComplete="off"
+        />
         <button
           type="submit"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-brand text-surface hover:bg-brand/90 transition-colors"
+          aria-label="Add item"
+          className="flex size-12 shrink-0 items-center justify-center rounded-card bg-action text-action-ink active:bg-action/85"
         >
-          <Plus size={16} />
+          <Plus size={18} strokeWidth={2.5} />
         </button>
       </form>
-    </Card>
+    </div>
   );
 }

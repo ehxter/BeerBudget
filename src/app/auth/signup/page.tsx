@@ -5,23 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { SignUpForm } from "./SignUpForm";
 import { Card } from "@/components/ui";
 
-export const metadata = { title: "Create account · Koskalak Planner" };
+export const metadata = { title: "Create account · Istanbul" };
 
 export default async function SignUpPage() {
   if (await getCurrentUser()) redirect("/");
 
   // The trip has room for exactly two people.
-  const userCount = await prisma.user.count();
-  const isFull = userCount >= 2;
+  const isFull = (await prisma.user.count()) >= 2;
 
   return (
-    <div className="animate-rise">
-      <div className="mb-8">
-        <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-accent-soft text-2xl">
-          🕌
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink">Create account</h1>
-        <p className="mt-1 text-sm text-ink-faint">
+    <div className="animate-rise flex flex-col gap-8">
+      <div>
+        <h1 className="text-title font-semibold text-ink">Create account</h1>
+        <p className="mt-1 text-meta text-ink-4">
           {isFull
             ? "Both travelers have already signed up."
             : "You're the second traveler on this trip."}
@@ -29,17 +25,19 @@ export default async function SignUpPage() {
       </div>
 
       {isFull ? (
-        <Card className="text-sm text-ink-muted">
-          This trip already has its two travelers. Sign in with an existing
-          account instead.
+        <Card pad={16}>
+          <p className="text-meta text-ink-3">
+            This trip already has its two travelers. Sign in with an existing
+            account instead.
+          </p>
         </Card>
       ) : (
         <SignUpForm />
       )}
 
-      <p className="mt-6 text-center text-sm text-ink-faint">
+      <p className="text-center text-meta text-ink-4">
         Already have an account?{" "}
-        <Link href="/auth/signin" className="font-medium text-accent hover:underline">
+        <Link href="/auth/signin" className="font-medium text-ink">
           Sign in
         </Link>
       </p>

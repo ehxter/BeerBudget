@@ -20,6 +20,7 @@ export type TripContext = {
   trip: {
     id: string;
     name: string;
+    emoji: string;
     destination: string;
     startDate: Date;
     endDate: Date;
@@ -60,6 +61,7 @@ export const requireTripContext = cache(async (): Promise<TripContext> => {
     trip: {
       id: trip.id,
       name: trip.name,
+      emoji: trip.emoji,
       destination: trip.destination,
       startDate: trip.startDate,
       endDate: trip.endDate,
@@ -96,6 +98,7 @@ export async function getTripContextOrNull(): Promise<TripContext | null> {
     trip: {
       id: trip.id,
       name: trip.name,
+      emoji: trip.emoji,
       destination: trip.destination,
       startDate: trip.startDate,
       endDate: trip.endDate,

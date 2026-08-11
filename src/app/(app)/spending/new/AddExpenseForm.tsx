@@ -6,12 +6,14 @@ import { ChevronDown } from "lucide-react";
 import { addExpense, type ExpenseFormState } from "../actions";
 import {
   Card,
+  CardLabel,
+  Divider,
   Field,
   Input,
   Textarea,
   FormError,
   SubmitButton,
-  ChoiceChips,
+  Chips,
 } from "@/components/ui";
 import {
   CURRENCIES,
@@ -30,6 +32,16 @@ type Member = { id: string; name: string };
 
 const initialState: ExpenseFormState = {};
 
+const CURRENCY_CHIPS = CURRENCIES.map((code) => ({
+  value: code,
+  label: code === "TOMAN" ? "TMN" : code,
+}));
+
+/**
+ * Add Cost. Not a Figma frame — built from the same language: the 32px amount
+ * treatment from the Exchange converter, chips for every choice, and a white
+ * block button to commit.
+ */
 export function AddExpenseForm({
   self,
   partner,
@@ -39,7 +51,6 @@ export function AddExpenseForm({
   self: Member;
   partner: Member | null;
   baseCurrency: CurrencyCode;
-  /** Toman-anchored rate table, for the live base-currency preview. */
   tomanPerUnit: Record<CurrencyCode, number>;
 }) {
   const router = useRouter();
@@ -84,22 +95,21 @@ export function AddExpenseForm({
       const owner = beneficiaryId === self.id ? self : partner;
       return [{ name: owner.name, shareMinor: amountMinor }];
     }
-
     if (splitMethod === "CUSTOM") {
-      const mine = parseAmountToMinor(customSelf, currency) ?? 0;
-      const theirs = parseAmountToMinor(customPartner, currency) ?? 0;
       return [
-        { name: self.name, shareMinor: mine },
-        { name: partner.name, shareMinor: theirs },
+        { name: self.name, shareMinor: parseAmountToMinor(customSelf, currency) ?? 0 },
+        {
+          name: partner.name,
+          shareMinor: parseAmountToMinor(customPartner, currency) ?? 0,
+        },
       ];
     }
-
     const [mine, theirs] = splitEqualMinor(amountMinor, 2);
     return [
       { name: self.name, shareMinor: mine },
       { name: partner.name, shareMinor: theirs },
     ];
-  })();
+  })();;
 
   const customTotal =
     (parseAmountToMinor(customSelf, currency) ?? 0) +
@@ -108,17 +118,14 @@ export function AddExpenseForm({
     splitMethod === "CUSTOM" && amountMinor > 0 && customTotal !== amountMinor;
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="flex flex-col gap-4">
       <FormError>{state.error}</FormError>
 
-      {/* Amount — the first and largest thing on screen. */}
-      <Card className="pb-4">
-        <div className="flex items-baseline gap-2">
-          {CURRENCY_META[currency].position === "prefix" ? (
-            <span className="text-3xl font-semibold text-ink-faint">
-              {CURRENCY_META[currency].symbol}
-            </span>
-          ) : null}
+      <Card pad={16}>
+        <div className="flex items-baseline gap-1.5 py-1">
+          <span className="text-display font-bold text-ink-5">
+            {CURRENCY_META[currency].symbol}
+          </span>
           <input
             name="amount"
             value={amount}
@@ -128,33 +135,23 @@ export function AddExpenseForm({
             required
             placeholder="0"
             aria-label="Amount"
-            className="tnum w-full min-w-0 bg-transparent text-4xl font-bold tracking-tight text-ink outline-none placeholder:text-ink-faint/40"
+            className="tnum w-full min-w-0 bg-transparent text-display font-bold text-ink outline-none placeholder:text-ink-5"
           />
-          {CURRENCY_META[currency].position === "suffix" ? (
-            <span className="text-2xl font-semibold text-ink-faint">
-              {CURRENCY_META[currency].symbol}
-            </span>
-          ) : null}
         </div>
 
         {currency !== baseCurrency && amountMinor > 0 ? (
-          <p className="tnum mt-1.5 text-xs text-ink-faint">
+          <p className="tnum text-meta text-ink-4">
             ≈ {formatMoney(baseAmountMinor, baseCurrency)} at today&apos;s rate
           </p>
         ) : null}
 
-        <div className="mt-4">
-          <ChoiceChips
-            name="currency"
-            options={CURRENCIES.map((code) => ({
-              value: code,
-              label: code === "TOMAN" ? "Toman" : code,
-            }))}
-            value={currency}
-            onChange={setCurrency}
-            columns={4}
-          />
-        </div>
+        <Chips
+          name="currency"
+          options={CURRENCY_CHIPS}
+          value={currency}
+          onChange={setCurrency}
+          columns={4}
+        />
       </Card>
 
       <Field label="Description">
@@ -168,36 +165,41 @@ export function AddExpenseForm({
       </Field>
 
       <div>
-        <span className="mb-1.5 block text-xs font-medium text-ink-muted">Category</span>
-        <ChoiceChips
+        <span className="mb-2 block text-label font-semibold uppercase text-ink-5">
+          Category
+        </span>
+        <Chips
           name="category"
-          options={EXPENSE_CATEGORIES}
+          options={EXPENSE_CATEGORIES.map((c) => ({
+            value: c.value,
+            label: c.short,
+            emoji: c.emoji,
+          }))}
           value={category}
           onChange={setCategory}
-          columns={4}
+          columns={3}
         />
       </div>
 
-      {/* Shared vs private */}
       {partner ? (
         <div>
-          <span className="mb-1.5 block text-xs font-medium text-ink-muted">
+          <span className="mb-2 block text-label font-semibold uppercase text-ink-5">
             Who is this for
           </span>
-          <ChoiceChips
+          <Chips
             name="scope"
             options={[
               { value: "SHARED", label: "Shared" },
-              { value: "PRIVATE", label: "Just me (private)" },
+              { value: "PRIVATE", label: "Private" },
             ]}
             value={scope}
             onChange={setScope}
             columns={2}
           />
           {scope === "PRIVATE" ? (
-            <p className="mt-1.5 text-xs text-ink-faint">
-              Private expenses count against your personal budget only.{" "}
-              {partner.name} will never see them.
+            <p className="mt-2 text-meta text-ink-4">
+              Counts against your personal budget only. {partner.name} never
+              sees it.
             </p>
           ) : null}
         </div>
@@ -205,14 +207,13 @@ export function AddExpenseForm({
         <input type="hidden" name="scope" value="PRIVATE" />
       )}
 
-      {/* Paid by + split — only meaningful for shared expenses */}
       {partner && scope === "SHARED" ? (
         <>
           <div>
-            <span className="mb-1.5 block text-xs font-medium text-ink-muted">
+            <span className="mb-2 block text-label font-semibold uppercase text-ink-5">
               Paid by
             </span>
-            <ChoiceChips
+            <Chips
               name="paidById"
               options={[
                 { value: self.id, label: "Me" },
@@ -225,10 +226,12 @@ export function AddExpenseForm({
           </div>
 
           <div>
-            <span className="mb-1.5 block text-xs font-medium text-ink-muted">Split</span>
-            <ChoiceChips
+            <span className="mb-2 block text-label font-semibold uppercase text-ink-5">
+              Split
+            </span>
+            <Chips
               name="splitMethod"
-              options={SPLIT_METHODS}
+              options={SPLIT_METHODS.map((s) => ({ value: s.value, label: s.label }))}
               value={splitMethod}
               onChange={setSplitMethod}
               columns={3}
@@ -237,10 +240,10 @@ export function AddExpenseForm({
 
           {splitMethod === "SINGLE" ? (
             <div>
-              <span className="mb-1.5 block text-xs font-medium text-ink-muted">
+              <span className="mb-2 block text-label font-semibold uppercase text-ink-5">
                 Belongs entirely to
               </span>
-              <ChoiceChips
+              <Chips
                 name="beneficiaryId"
                 options={[
                   { value: self.id, label: "Me" },
@@ -274,9 +277,9 @@ export function AddExpenseForm({
                 />
               </Field>
               {customMismatch ? (
-                <p className="col-span-2 -mt-1 text-xs text-negative">
+                <p className="col-span-2 -mt-1 text-meta text-cat-6">
                   Shares add up to {formatMoney(customTotal, currency)}, but the
-                  expense is {formatMoney(amountMinor, currency)}.
+                  cost is {formatMoney(amountMinor, currency)}.
                 </p>
               ) : null}
             </div>
@@ -284,16 +287,14 @@ export function AddExpenseForm({
         </>
       ) : null}
 
-      {/* Live split preview */}
       {preview ? (
-        <Card className="space-y-2 bg-surface-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-faint">
-            Split preview
-          </p>
+        <Card pad={16} className="gap-3">
+          <CardLabel>Split preview</CardLabel>
+          <Divider soft />
           {preview.map((entry) => (
-            <div key={entry.name} className="flex justify-between text-sm">
-              <span className="text-ink-muted">{entry.name}</span>
-              <span className="tnum font-semibold text-ink">
+            <div key={entry.name} className="flex justify-between text-meta">
+              <span className="text-ink-3">{entry.name}</span>
+              <span className="tnum font-medium text-ink">
                 {formatMoney(entry.shareMinor, currency)}
               </span>
             </div>
@@ -305,7 +306,7 @@ export function AddExpenseForm({
       <button
         type="button"
         onClick={() => setShowMore((value) => !value)}
-        className="flex w-full items-center justify-center gap-1 py-1 text-xs font-medium text-ink-faint"
+        className="flex w-full items-center justify-center gap-1 py-1 text-meta font-medium text-ink-4"
       >
         {showMore ? "Fewer options" : "Date & note"}
         <ChevronDown
@@ -315,7 +316,7 @@ export function AddExpenseForm({
       </button>
 
       {showMore ? (
-        <div className="animate-rise space-y-4">
+        <div className="animate-rise flex flex-col gap-4">
           <Field label="Date">
             <Input type="date" name="date" defaultValue={toDateInputValue(new Date())} />
           </Field>
@@ -328,12 +329,11 @@ export function AddExpenseForm({
       )}
 
       <SubmitButton
-        size="lg"
-        className="w-full"
+        size="block"
         disabled={amountMinor <= 0 || customMismatch}
         pendingLabel="Saving…"
       >
-        Save expense
+        Save cost
       </SubmitButton>
     </form>
   );

@@ -1,17 +1,23 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Download, Upload, File as FileIcon } from "lucide-react";
-import { Card, Input, ChoiceChips, SubmitButton, FormError } from "@/components/ui";
+import { useRouter } from "next/navigation";
+import { Download, Upload, Plus, X, Paperclip } from "lucide-react";
+import {
+  Card,
+  Input,
+  Chips,
+  SubmitButton,
+  FormError,
+  EmptyState,
+  Button,
+  CardButton,
+  Divider,
+} from "@/components/ui";
 import { VAULT_CATEGORIES, emojiFor } from "@/lib/constants";
 import { addVaultItem } from "./actions";
 
-type VaultFile = {
-  id: string;
-  filename: string;
-  sizeBytes: number;
-};
-
+type VaultFile = { id: string; filename: string; sizeBytes: number };
 type VaultItem = {
   id: string;
   title: string;
@@ -20,28 +26,49 @@ type VaultItem = {
   files: VaultFile[];
 };
 
-export function Vault({ items }: { items: VaultItem[] }) {
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function Vault({
+  items,
+  startOpen = false,
+}: {
+  items: VaultItem[];
+  /** Opens the composer immediately — the header "Add Item" pill sets this. */
+  startOpen?: boolean;
+}) {
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [error, setError] = useState("");
   const [category, setCategory] = useState<string>("OTHER");
-  const [isUploading, setIsUploading] = useState(false);
+  const [composing, setComposing] = useState(startOpen);
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
 
   async function handleAction(formData: FormData) {
-    const res = await addVaultItem({}, formData);
-    if (res.error) {
-      setError(res.error);
-    } else {
-      setError("");
-      formRef.current?.reset();
-      setCategory("OTHER");
+    const result = await addVaultItem({}, formData);
+    if (result.error) {
+      setError(result.error);
+      return;
     }
+    setError("");
+    formRef.current?.reset();
+    setCategory("OTHER");
+    setComposing(false);
   }
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>, itemId: string) {
-    const file = e.target.files?.[0];
+  async function handleFileUpload(
+    event: React.ChangeEvent<HTMLInputElement>,
+    itemId: string,
+  ) {
+    const file = event.target.files?.[0];
     if (!file) return;
 
-    setIsUploading(true);
+    setUploadingFor(itemId);
+    setError("");
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append("vaultItemId", itemId);
@@ -52,81 +79,115 @@ export function Vault({ items }: { items: VaultItem[] }) {
         body: formData,
       });
       if (!response.ok) throw new Error("Upload failed");
-      window.location.reload(); // Quick refresh to show new file
-    } catch (err) {
-      alert("Failed to upload file");
+      // Refresh the server component rather than reloading the document.
+      router.refresh();
+    } catch {
+      setError("That file could not be uploaded.");
     } finally {
-      setIsUploading(false);
+      setUploadingFor(null);
+      event.target.value = "";
     }
   }
 
   return (
-    <div className="space-y-4">
-      <form ref={formRef} action={handleAction} className="space-y-3">
-        <FormError>{error}</FormError>
-        <Card className="space-y-3 p-4 bg-surface-2/50 border-dashed border-2 border-surface-3 shadow-none">
-          <Input name="title" placeholder="e.g. Passport Copy" required className="bg-surface" />
-          
-          <div>
-            <span className="mb-1.5 block text-xs font-medium text-ink-muted">Category</span>
-            <ChoiceChips
+    <div className="flex flex-col gap-4">
+      <FormError>{error}</FormError>
+
+      {composing ? (
+        <form ref={formRef} action={handleAction} className="animate-rise flex flex-col gap-4">
+          <Card pad={16}>
+            <Input name="title" placeholder="e.g. Passport" required autoFocus maxLength={120} />
+            <Chips
               name="category"
-              options={VAULT_CATEGORIES}
+              options={VAULT_CATEGORIES.map((c) => ({
+                value: c.value,
+                label: c.label,
+                emoji: c.emoji,
+              }))}
               value={category}
               onChange={setCategory}
               columns={3}
             />
-          </div>
-
-          <Input name="content" placeholder="Optional notes (e.g. passport number)" className="bg-surface" />
-          
-          <SubmitButton className="w-full">Create Entry</SubmitButton>
-        </Card>
-      </form>
-
-      <div className="space-y-3">
-        {items.map((item) => (
-          <Card key={item.id} className="p-4 space-y-3">
-            <div className="flex items-center gap-2 border-b border-surface-2 pb-2">
-              <span className="text-xl">{emojiFor(VAULT_CATEGORIES, item.category)}</span>
-              <h3 className="font-semibold text-ink">{item.title}</h3>
-            </div>
-            
-            {item.content ? (
-              <div className="text-sm text-ink-muted">{item.content}</div>
-            ) : null}
-
-            <div className="space-y-2 pt-2">
-              {item.files.map((file) => (
-                <div key={file.id} className="flex items-center justify-between rounded bg-surface-2 p-2 text-sm">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <FileIcon size={14} className="text-ink-faint shrink-0" />
-                    <span className="truncate text-ink">{file.filename}</span>
-                  </div>
-                  <a
-                    href={`/api/vault/download/${file.id}`}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-surface-3 hover:bg-surface-4 text-ink-muted transition-colors"
-                    title="Download"
-                  >
-                    <Download size={14} />
-                  </a>
-                </div>
-              ))}
-
-              <label className="flex cursor-pointer items-center justify-center gap-1 rounded border border-dashed border-surface-3 py-2 text-xs font-medium text-ink-faint hover:bg-surface-2 transition-colors">
-                <Upload size={14} />
-                {isUploading ? "Uploading..." : "Upload file"}
-                <input
-                  type="file"
-                  className="hidden"
-                  disabled={isUploading}
-                  onChange={(e) => handleFileUpload(e, item.id)}
-                />
-              </label>
-            </div>
+            <Input name="content" placeholder="Details (optional)" maxLength={500} />
           </Card>
-        ))}
-      </div>
+          <div className="flex gap-2">
+            <SubmitButton size="block" className="flex-1" pendingLabel="Saving…">
+              Save entry
+            </SubmitButton>
+            <Button
+              type="button"
+              variant="quiet"
+              onClick={() => setComposing(false)}
+              aria-label="Cancel"
+              className="w-12 px-0"
+            >
+              <X size={17} />
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <CardButton onClick={() => setComposing(true)}>
+          <Plus size={16} className="mr-1.5" />
+          New entry
+        </CardButton>
+      )}
+
+      {items.length === 0 ? (
+        <EmptyState
+          icon={<span className="text-base">🔒</span>}
+          title="Vault is empty"
+          description="Passport details, booking references, insurance — stored against your account and served only to you."
+        />
+      ) : (
+        <div className="flex flex-col gap-3">
+          {items.map((item) => (
+            <Card key={item.id} pad={16} className="gap-3">
+              <div className="flex items-center gap-2">
+                <span aria-hidden="true" className="text-meta">
+                  {emojiFor(VAULT_CATEGORIES, item.category)}
+                </span>
+                <h3 className="min-w-0 flex-1 truncate text-row font-medium text-ink">
+                  {item.title}
+                </h3>
+              </div>
+
+              {item.content ? (
+                <p className="text-meta leading-relaxed text-ink-3">{item.content}</p>
+              ) : null}
+
+              {item.files.length > 0 ? <Divider soft /> : null}
+
+              <div className="flex flex-col gap-2">
+                {item.files.map((file) => (
+                  <a
+                    key={file.id}
+                    href={`/api/vault/download/${file.id}`}
+                    className="flex items-center gap-2 rounded-pill bg-track px-3 py-2.5 text-meta active:bg-fill"
+                  >
+                    <Paperclip size={13} className="shrink-0 text-ink-4" />
+                    <span className="min-w-0 flex-1 truncate text-ink">{file.filename}</span>
+                    <span className="tnum shrink-0 text-label text-ink-5">
+                      {formatBytes(file.sizeBytes)}
+                    </span>
+                    <Download size={13} className="shrink-0 text-ink-4" />
+                  </a>
+                ))}
+
+                <label className="flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-pill border border-dashed border-line text-label font-medium text-ink-4 active:bg-track">
+                  <Upload size={13} />
+                  {uploadingFor === item.id ? "Uploading…" : "Attach file"}
+                  <input
+                    type="file"
+                    className="hidden"
+                    disabled={uploadingFor !== null}
+                    onChange={(event) => handleFileUpload(event, item.id)}
+                  />
+                </label>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

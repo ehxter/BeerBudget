@@ -21,13 +21,15 @@ type CurrencyMeta = {
   position: "prefix" | "suffix";
   /** Digits after the decimal point in the minor unit. */
   decimals: number;
+  /** Short unit name shown next to a headline figure ("35,000 Lira"). */
+  unit: string;
 };
 
 export const CURRENCY_META: Record<CurrencyCode, CurrencyMeta> = {
-  TRY: { code: "TRY", label: "Turkish Lira", symbol: "₺", position: "prefix", decimals: 2 },
-  USD: { code: "USD", label: "US Dollar", symbol: "$", position: "prefix", decimals: 2 },
-  EUR: { code: "EUR", label: "Euro", symbol: "€", position: "prefix", decimals: 2 },
-  TOMAN: { code: "TOMAN", label: "Toman", symbol: "T", position: "suffix", decimals: 0 },
+  TRY: { code: "TRY", label: "Turkish Lira", symbol: "₺", position: "prefix", decimals: 2, unit: "Lira" },
+  USD: { code: "USD", label: "US Dollar", symbol: "$", position: "prefix", decimals: 2, unit: "Dollar" },
+  EUR: { code: "EUR", label: "Euro", symbol: "€", position: "prefix", decimals: 2, unit: "Euro" },
+  TOMAN: { code: "TOMAN", label: "Toman", symbol: "T", position: "suffix", decimals: 0, unit: "Toman" },
 };
 
 export function isCurrency(value: unknown): value is CurrencyCode {
@@ -119,7 +121,11 @@ export function formatMoney(
   const major = toMajor(magnitude, currency);
 
   const hasFraction = meta.decimals > 0 && magnitude % factor(currency) !== 0;
-  const fractionDigits = options.showDecimals || hasFraction ? meta.decimals : 0;
+
+  // Above a thousand units the minor digits are noise, and cross-currency
+  // conversion produces trailing kuruş constantly. Small amounts keep them.
+  const significant = hasFraction && major < 1000;
+  const fractionDigits = options.showDecimals || significant ? meta.decimals : 0;
 
   const digits = major.toLocaleString("en-US", {
     minimumFractionDigits: fractionDigits,

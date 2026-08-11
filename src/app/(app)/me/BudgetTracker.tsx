@@ -1,109 +1,138 @@
 "use client";
 
-import { useState, useActionState, useEffect } from "react";
-import { Card, ProgressBar, Input, ChoiceChips, SubmitButton, FormError } from "@/components/ui";
-import { formatMoney, type CurrencyCode, CURRENCIES } from "@/lib/money";
-import { updateBudget, type ActionState } from "./actions";
-import { Settings2, X } from "lucide-react";
+import { useActionState, useState } from "react";
+import { Pencil, X } from "lucide-react";
+import {
+  Card,
+  CardLabel,
+  Divider,
+  ProgressBar,
+  Input,
+  Chips,
+  SubmitButton,
+  FormError,
+} from "@/components/ui";
+import { formatMoney, toMajor, CURRENCY_META, type CurrencyCode, CURRENCIES } from "@/lib/money";
+import { updateBudget } from "./actions";
 
-type BudgetTrackerProps = {
+export function BudgetTracker({
+  budgetMinor,
+  budgetCurrency,
+  spentMinor,
+  startOpen = false,
+}: {
   budgetMinor: number;
   budgetCurrency: CurrencyCode;
+  /** Already converted into budgetCurrency by the page. */
   spentMinor: number;
-};
-
-export function BudgetTracker({ budgetMinor, budgetCurrency, spentMinor }: BudgetTrackerProps) {
-  const [isEditing, setIsEditing] = useState(budgetMinor === 0);
+  /** Opens the editor immediately — the header "Add Budget" pill sets this. */
+  startOpen?: boolean;
+}) {
+  const hasBudget = budgetMinor > 0;
+  const [isEditing, setIsEditing] = useState(!hasBudget || startOpen);
   const [currency, setCurrency] = useState<CurrencyCode>(budgetCurrency);
   const [state, formAction] = useActionState(updateBudget, {});
 
-  useEffect(() => {
-    if (state.ok && budgetMinor !== 0) {
-      setIsEditing(false);
-    }
-  }, [state.ok, budgetMinor]);
-
   if (isEditing) {
     return (
-      <Card className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-ink">Set Personal Budget</h3>
-          {budgetMinor > 0 && (
-            <button onClick={() => setIsEditing(false)} className="text-ink-faint hover:text-ink">
-              <X size={18} />
-            </button>
-          )}
-        </div>
-        <form action={formAction} className="space-y-4">
-          <FormError>{state.error}</FormError>
-          <div>
-            <span className="mb-1.5 block text-xs font-medium text-ink-muted">Amount</span>
-            <Input 
-              name="amount" 
-              inputMode="decimal" 
-              defaultValue={budgetMinor > 0 ? formatMoney(budgetMinor, budgetCurrency, { bare: true, showDecimals: false }).replace(/,/g, "") : ""} 
-              placeholder="e.g. 500" 
-              required 
-            />
+      <form action={formAction} className="flex flex-col gap-4">
+        <FormError>{state.error}</FormError>
+
+        <Card pad={20}>
+          <div className="flex items-center justify-between">
+            <CardLabel>Personal budget</CardLabel>
+            {hasBudget ? (
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                aria-label="Cancel"
+                className="text-ink-4 active:text-ink"
+              >
+                <X size={16} />
+              </button>
+            ) : null}
           </div>
-          <div>
-            <span className="mb-1.5 block text-xs font-medium text-ink-muted">Currency</span>
-            <ChoiceChips
-              name="currency"
-              options={CURRENCIES.map(code => ({ value: code, label: code === "TOMAN" ? "Toman" : code }))}
-              value={currency}
-              onChange={setCurrency}
-              columns={4}
-            />
-          </div>
-          <SubmitButton className="w-full">Save Budget</SubmitButton>
-        </form>
-      </Card>
+
+          <Input
+            name="amount"
+            inputMode="decimal"
+            defaultValue={hasBudget ? String(toMajor(budgetMinor, budgetCurrency)) : ""}
+            placeholder="500"
+            required
+            autoComplete="off"
+          />
+
+          <Chips
+            name="currency"
+            options={CURRENCIES.map((code) => ({
+              value: code,
+              label: code === "TOMAN" ? "TMN" : code,
+            }))}
+            value={currency}
+            onChange={setCurrency}
+            columns={4}
+          />
+        </Card>
+
+        <SubmitButton size="block" pendingLabel="Saving…">
+          Save budget
+        </SubmitButton>
+      </form>
     );
   }
 
   const remaining = budgetMinor - spentMinor;
-  const percentage = Math.min(100, Math.max(0, (spentMinor / budgetMinor) * 100));
-  
-  const isOverBudget = remaining < 0;
+  const overBudget = remaining < 0;
+  const percent = budgetMinor > 0 ? (spentMinor / budgetMinor) * 100 : 0;
 
   return (
-    <Card className="p-4 space-y-4 relative">
-      <button 
-        onClick={() => setIsEditing(true)} 
-        className="absolute top-4 right-4 text-ink-faint hover:text-ink transition-colors"
-        aria-label="Edit Budget"
-      >
-        <Settings2 size={16} />
-      </button>
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
-            Remaining
-          </p>
-          <p className={`text-2xl font-bold mt-1 ${isOverBudget ? 'text-negative' : 'text-positive'}`}>
-            {isOverBudget ? '- ' : ''}
-            {formatMoney(Math.abs(remaining), budgetCurrency)}
-          </p>
+    <div className="flex flex-col gap-4">
+      <Card pad={20}>
+        <div className="flex items-center justify-between">
+          <CardLabel>{overBudget ? "Over budget" : "Budget left"}</CardLabel>
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            aria-label="Edit budget"
+            className="text-ink-4 active:text-ink"
+          >
+            <Pencil size={14} />
+          </button>
         </div>
-        <div className="text-right">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
-            Personal Spent
-          </p>
-          <p className="text-sm font-semibold text-ink mt-1">
-            {formatMoney(spentMinor, budgetCurrency)}
-          </p>
-        </div>
-      </div>
 
-      <ProgressBar 
-        percent={percentage} 
-        tone={isOverBudget ? "negative" : percentage > 85 ? "warn" : "positive"} 
-      />
-      
-      <p className="text-[11px] text-ink-faint text-center">
-        Budget limit: {formatMoney(budgetMinor, budgetCurrency)}
-      </p>
-    </Card>
+        <div className="flex items-baseline gap-2">
+          <span
+            className={`tnum text-figure font-semibold ${overBudget ? "text-cat-6" : "text-ink"}`}
+          >
+            {formatMoney(Math.abs(remaining), budgetCurrency, { bare: true })}
+          </span>
+          <span className="text-meta font-semibold text-ink-5">
+            {CURRENCY_META[budgetCurrency].unit}
+          </span>
+        </div>
+
+        <ProgressBar
+          percent={percent}
+          tone={overBudget ? "negative" : "positive"}
+          label="Personal budget consumed"
+        />
+
+        <div className="flex items-center justify-between text-label font-medium text-ink-3">
+          <span className="tnum">
+            {formatMoney(spentMinor, budgetCurrency, { bare: true })} Spent
+          </span>
+          <span className="tnum">
+            {formatMoney(budgetMinor, budgetCurrency, { bare: true })} Total
+          </span>
+        </div>
+
+        <Divider soft />
+
+        <p className="text-label leading-relaxed text-ink-5">
+          Only you can see this. Private costs never appear in the shared budget
+          or the settlement balance.
+        </p>
+      </Card>
+    </div>
   );
 }

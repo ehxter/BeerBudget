@@ -1,28 +1,43 @@
 import { requireTripContext } from "@/lib/trip";
 import { prisma } from "@/lib/prisma";
-import { PageHeader } from "@/components/ui";
-import { TabSwitcher } from "@/components/ui/TabSwitcher";
+import { Screen, ButtonLink, TabSwitcher, SectionHeader } from "@/components/ui";
+import { AgendaList } from "./AgendaList";
+import { WishlistList } from "./WishlistList";
 import { Checklist } from "./Checklist";
-import { ItineraryList } from "./ItineraryList";
 import { SharedInfo } from "./SharedInfo";
 
-export const metadata = { title: "Trip · Koskalak Planner" };
+export const metadata = { title: "Trip · Istanbul" };
 export const dynamic = "force-dynamic";
 
-export default async function TripPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+/**
+ * Trip, from the Figma "Home" (Agenda) and "Home — Wishlist" frames — the
+ * layer names weren't updated when the file was renamed, but the bottom nav
+ * and content confirm this is Trip. The design shows only an Agenda/Wishlist
+ * segmented pair; Checklist and Shared Info have no Figma reference, so they
+ * sit below as their own stacked sections rather than inventing a third tab.
+ */
+export default async function TripPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { trip } = await requireTripContext();
   const { tab } = await searchParams;
-  const currentTab = tab || "itinerary";
+  const currentTab = tab ?? "agenda";
 
-  // Fetch all data in parallel
-  const [checklist, itinerary, sharedInfo] = await Promise.all([
+  const [itinerary, places, checklist, sharedInfo] = await Promise.all([
+    prisma.itineraryItem.findMany({
+      where: { tripId: trip.id, day: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+      orderBy: [{ day: "asc" }, { sortOrder: "asc" }, { startTime: "asc" }],
+    }),
+    prisma.place.findMany({
+      where: { tripId: trip.id, status: { not: "VISITED" } },
+      orderBy: { createdAt: "asc" },
+    }),
     prisma.checklistItem.findMany({
       where: { tripId: trip.id },
       orderBy: { sortOrder: "asc" },
-    }),
-    prisma.itineraryItem.findMany({
-      where: { tripId: trip.id },
-      orderBy: [{ day: "asc" }, { sortOrder: "asc" }, { startTime: "asc" }],
+      include: { completedBy: { select: { name: true } } },
     }),
     prisma.sharedInfo.findMany({
       where: { tripId: trip.id },
@@ -31,24 +46,41 @@ export default async function TripPage({ searchParams }: { searchParams: Promise
   ]);
 
   return (
-    <div className="space-y-6 pb-24">
-      <PageHeader title="Trip Details" back="/" />
-
+    <Screen
+      trip={{ emoji: trip.emoji, name: trip.name }}
+      gap={4}
+      className="animate-rise"
+      action={
+        currentTab === "wishlist" ? (
+          <ButtonLink href="/trip/places/new">Add Place</ButtonLink>
+        ) : (
+          <ButtonLink href="/trip/itinerary/new">Add Event</ButtonLink>
+        )
+      }
+    >
       <TabSwitcher
         name="tab"
+        defaultValue="agenda"
         options={[
-          { value: "itinerary", label: "Itinerary" },
-          { value: "info", label: "Shared Info" },
-          { value: "checklist", label: "Checklist" },
+          { value: "agenda", label: "Agenda" },
+          { value: "wishlist", label: "Wishlist" },
         ]}
-        defaultValue={currentTab}
       />
 
-      <div className="animate-rise">
-        {currentTab === "itinerary" && <ItineraryList items={itinerary} />}
-        {currentTab === "info" && <SharedInfo items={sharedInfo} />}
-        {currentTab === "checklist" && <Checklist items={checklist} />}
+      <div className="animate-fade-in flex flex-col gap-4">
+        {currentTab === "agenda" ? <AgendaList items={itinerary} /> : null}
+        {currentTab === "wishlist" ? <WishlistList places={places} /> : null}
       </div>
-    </div>
+
+      {/* Checklist renders its own "Checklist · X of Y done" header. */}
+      <section className="flex flex-col gap-2.5 pt-4">
+        <Checklist items={checklist} />
+      </section>
+
+      <section className="flex flex-col gap-2.5">
+        <SectionHeader label="Trip info" />
+        <SharedInfo items={sharedInfo} />
+      </section>
+    </Screen>
   );
 }

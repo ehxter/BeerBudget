@@ -1,10 +1,8 @@
 "use server";
 
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireTripContext } from "@/lib/trip";
 import { revalidatePath } from "next/cache";
-import { VAULT_CATEGORIES } from "@/lib/constants";
 
 import { parseAmountToMinor, type CurrencyCode } from "@/lib/money";
 

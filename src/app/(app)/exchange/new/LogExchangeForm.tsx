@@ -5,23 +5,43 @@ import { useRouter } from "next/navigation";
 import { addExchange, type ExchangeFormState } from "../actions";
 import {
   Card,
+  CardLabel,
+  Divider,
   Field,
   Input,
-  Textarea,
   FormError,
   SubmitButton,
-  ChoiceChips,
+  Chips,
 } from "@/components/ui";
-import { CURRENCIES, type CurrencyCode } from "@/lib/money";
+import {
+  CURRENCIES,
+  formatRate,
+  parseAmountToMinor,
+  toMajor,
+  type CurrencyCode,
+} from "@/lib/money";
+
+const CHIPS = CURRENCIES.map((code) => ({
+  value: code,
+  label: code === "TOMAN" ? "TMN" : code,
+}));
 
 const initialState: ExchangeFormState = {};
 
-export function LogExchangeForm({ baseCurrency }: { baseCurrency: CurrencyCode }) {
+export function LogExchangeForm({
+  baseCurrency,
+  tomanPerUnit,
+}: {
+  baseCurrency: CurrencyCode;
+  tomanPerUnit: Record<CurrencyCode, number>;
+}) {
   const router = useRouter();
   const [state, formAction] = useActionState(addExchange, initialState);
 
-  const [fromCurrency, setFromCurrency] = useState<CurrencyCode>(baseCurrency);
-  const [toCurrency, setToCurrency] = useState<CurrencyCode>("TOMAN");
+  const [fromCurrency, setFromCurrency] = useState<CurrencyCode>("USD");
+  const [toCurrency, setToCurrency] = useState<CurrencyCode>(baseCurrency);
+  const [fromAmount, setFromAmount] = useState("");
+  const [toAmount, setToAmount] = useState("");
 
   useEffect(() => {
     if (state.ok) {
@@ -30,73 +50,112 @@ export function LogExchangeForm({ baseCurrency }: { baseCurrency: CurrencyCode }
     }
   }, [state.ok, router]);
 
+  const fromMinor = parseAmountToMinor(fromAmount, fromCurrency) ?? 0;
+  const toMinor = parseAmountToMinor(toAmount, toCurrency) ?? 0;
+
+  // What you actually got, versus the reference rate right now.
+  const effective =
+    fromMinor > 0 && toMinor > 0
+      ? toMajor(toMinor, toCurrency) / toMajor(fromMinor, fromCurrency)
+      : 0;
+
+  const reference =
+    tomanPerUnit[fromCurrency] && tomanPerUnit[toCurrency]
+      ? tomanPerUnit[fromCurrency] / tomanPerUnit[toCurrency]
+      : 0;
+
+  const difference =
+    effective > 0 && reference > 0 ? ((effective - reference) / reference) * 100 : null;
+
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="flex flex-col gap-4">
       <FormError>{state.error}</FormError>
 
-      <Card className="space-y-4">
-        <div>
-          <span className="mb-1.5 block text-xs font-medium text-ink-muted">Gave</span>
-          <div className="flex items-center gap-2">
-            <Input
-              name="fromAmount"
-              inputMode="decimal"
-              autoFocus
-              required
-              placeholder="100"
-              className="flex-1"
-            />
-          </div>
-          <div className="mt-2">
-            <ChoiceChips
-              name="fromCurrency"
-              options={CURRENCIES.map((code) => ({
-                value: code,
-                label: code === "TOMAN" ? "Toman" : code,
-              }))}
-              value={fromCurrency}
-              onChange={setFromCurrency}
-              columns={4}
-            />
-          </div>
-        </div>
-
-        <div className="pt-4 border-t border-surface-2">
-          <span className="mb-1.5 block text-xs font-medium text-ink-muted">Received</span>
-          <div className="flex items-center gap-2">
-            <Input
-              name="toAmount"
-              inputMode="decimal"
-              required
-              placeholder="3400"
-              className="flex-1"
-            />
-          </div>
-          <div className="mt-2">
-            <ChoiceChips
-              name="toCurrency"
-              options={CURRENCIES.map((code) => ({
-                value: code,
-                label: code === "TOMAN" ? "Toman" : code,
-              }))}
-              value={toCurrency}
-              onChange={setToCurrency}
-              columns={4}
-            />
-          </div>
-        </div>
+      <Card pad={16}>
+        <CardLabel>You gave</CardLabel>
+        <Input
+          name="fromAmount"
+          value={fromAmount}
+          onChange={(event) => setFromAmount(event.target.value)}
+          inputMode="decimal"
+          required
+          placeholder="300"
+        />
+        <Chips
+          name="fromCurrency"
+          options={CHIPS}
+          value={fromCurrency}
+          onChange={setFromCurrency}
+          columns={4}
+        />
       </Card>
 
-      <Field label="Location" hint="Optional">
-        <Input name="location" placeholder="Grand Bazaar Exchange" maxLength={100} />
+      <Card pad={16}>
+        <CardLabel>You received</CardLabel>
+        <Input
+          name="toAmount"
+          value={toAmount}
+          onChange={(event) => setToAmount(event.target.value)}
+          inputMode="decimal"
+          required
+          placeholder="11760"
+        />
+        <Chips
+          name="toCurrency"
+          options={CHIPS}
+          value={toCurrency}
+          onChange={setToCurrency}
+          columns={4}
+        />
+      </Card>
+
+      {effective > 0 ? (
+        <Card pad={16} className="gap-3">
+          <CardLabel>Rate you got</CardLabel>
+          <div className="flex items-baseline gap-2">
+            <span className="tnum text-figure font-bold text-ink">
+              {formatRate(effective)}
+            </span>
+            <span className="text-meta text-ink-5">
+              {toCurrency === "TOMAN" ? "TMN" : toCurrency}/
+              {fromCurrency === "TOMAN" ? "TMN" : fromCurrency}
+            </span>
+          </div>
+
+          {difference !== null ? (
+            <>
+              <Divider soft />
+              <div className="flex items-baseline justify-between text-meta">
+                <span className="text-ink-3">
+                  Reference {formatRate(reference)}
+                </span>
+                <span
+                  className={`tnum font-medium ${
+                    difference < 0 ? "text-cat-6" : "text-cat-4"
+                  }`}
+                >
+                  {difference > 0 ? "+" : ""}
+                  {difference.toFixed(1)}%
+                </span>
+              </div>
+              <p className="text-label leading-relaxed text-ink-5">
+                A comparison against the cached reference rate, not advice.
+              </p>
+            </>
+          ) : null}
+        </Card>
+      ) : null}
+
+      <Field label="Where">
+        <Input name="location" maxLength={120} placeholder="Grand Bazaar exchange" />
       </Field>
 
-      <Field label="Note" hint="Optional">
-        <Textarea name="note" placeholder="They gave a slightly better rate" maxLength={200} />
-      </Field>
-
-      <SubmitButton size="lg" className="w-full">
-        Log Exchange
+      <SubmitButton
+        size="block"
+        disabled={fromMinor <= 0 || toMinor <= 0 || fromCurrency === toCurrency}
+        pendingLabel="Saving…"
+      >
+        Save exchange
       </SubmitButton>
     </form>
   );

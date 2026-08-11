@@ -1,9 +1,9 @@
 import { requireTripContext } from "@/lib/trip";
 import { getRateTable } from "@/lib/rates/store";
-import { PageHeader } from "@/components/ui";
+import { Screen } from "@/components/ui";
 import { AddExpenseForm } from "./AddExpenseForm";
 
-export const metadata = { title: "Add expense · Koskalak Planner" };
+export const metadata = { title: "Add cost · Istanbul" };
 export const dynamic = "force-dynamic";
 
 export default async function NewExpensePage() {
@@ -11,14 +11,13 @@ export default async function NewExpensePage() {
   const rates = await getRateTable();
 
   return (
-    <div className="animate-rise space-y-4">
-      <PageHeader title="Add expense" back="/spending" />
+    <Screen back="/spending" title="Add Cost" gap={4} className="animate-rise">
       <AddExpenseForm
         self={{ id: user.id, name: user.name }}
         partner={partner}
         baseCurrency={trip.baseCurrency}
         tomanPerUnit={rates.tomanPerUnit}
       />
-    </div>
+    </Screen>
   );
 }

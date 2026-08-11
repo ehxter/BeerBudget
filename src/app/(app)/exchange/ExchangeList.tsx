@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { formatMoney, type CurrencyCode } from "@/lib/money";
-import { Card, EmptyState } from "@/components/ui";
-import { formatDistanceToNowStrict } from "date-fns";
+import { asCurrency, formatMoney, formatRate } from "@/lib/money";
+import { CostItem, Dot, EmptyState } from "@/components/ui";
+import { relativeTimeAgo } from "@/lib/format";
 
 export async function ExchangeList({ tripId }: { tripId: string }) {
   const transactions = await prisma.exchangeTransaction.findMany({
@@ -14,37 +14,48 @@ export async function ExchangeList({ tripId }: { tripId: string }) {
   if (transactions.length === 0) {
     return (
       <EmptyState
-        icon="💸"
-        title="No exchanges yet"
-        description="Log when you convert cash at a local exchange office to keep track of the rate."
+        icon={<span className="text-base">💵</span>}
+        title="No exchanges logged"
+        description="Record what you actually got at the counter to keep a real rate on hand."
       />
     );
   }
 
   return (
-    <div className="space-y-3">
-      {transactions.map((tx) => (
-        <Card key={tx.id} className="flex items-center justify-between p-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-ink">
-                {formatMoney(tx.toAmountMinor, tx.toCurrency as CurrencyCode)}
-              </span>
-              <span className="text-xs text-ink-faint">received</span>
-            </div>
-            <div className="mt-1 text-xs text-ink-muted">
-              {formatMoney(tx.fromAmountMinor, tx.fromCurrency as CurrencyCode)} •{" "}
-              {tx.effectiveRate.toFixed(4)} rate
-            </div>
-            {tx.location ? (
-              <div className="mt-1 text-xs text-ink-faint">📍 {tx.location}</div>
-            ) : null}
-            <div className="mt-1 text-[11px] text-ink-faint">
-              By {tx.user.name} • {formatDistanceToNowStrict(tx.occurredAt)} ago
-            </div>
-          </div>
-        </Card>
-      ))}
+    <div className="flex flex-col gap-3">
+      {transactions.map((tx) => {
+        const from = asCurrency(tx.fromCurrency);
+        const to = asCurrency(tx.toCurrency);
+
+        return (
+          <CostItem
+            key={tx.id}
+            title={
+              <>
+                {formatMoney(tx.fromAmountMinor, from)}
+                <span className="mx-1.5 text-ink-4">→</span>
+                {formatMoney(tx.toAmountMinor, to)}
+              </>
+            }
+            meta={`${tx.user.name} · ${relativeTimeAgo(tx.occurredAt)}`}
+            amount={formatRate(tx.effectiveRate)}
+            sub={`${to === "TOMAN" ? "TMN" : to}/${from === "TOMAN" ? "TMN" : from}`}
+            footer={
+              tx.location ? (
+                <>
+                  {tx.location}
+                  {tx.note ? (
+                    <>
+                      <Dot />
+                      {tx.note}
+                    </>
+                  ) : null}
+                </>
+              ) : null
+            }
+          />
+        );
+      })}
     </div>
   );
 }

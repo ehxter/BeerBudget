@@ -3,27 +3,23 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { SignInForm } from "./SignInForm";
 
-export const metadata = { title: "Sign in · Koskalak Planner" };
+export const metadata = { title: "Sign in · Istanbul" };
 
 export default async function SignInPage() {
-  // Already signed in — no reason to show the form again.
   if (await getCurrentUser()) redirect("/");
 
   return (
-    <div className="animate-rise">
-      <div className="mb-8">
-        <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-accent-soft text-2xl">
-          🕌
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink">Koskalak Planner</h1>
-        <p className="mt-1 text-sm text-ink-faint">Sign in to your trip.</p>
+    <div className="animate-rise flex flex-col gap-8">
+      <div>
+        <h1 className="text-title font-semibold text-ink">Istanbul</h1>
+        <p className="mt-1 text-meta text-ink-4">Sign in to your trip.</p>
       </div>
 
       <SignInForm />
 
-      <p className="mt-6 text-center text-sm text-ink-faint">
+      <p className="text-center text-meta text-ink-4">
         No account yet?{" "}
-        <Link href="/auth/signup" className="font-medium text-accent hover:underline">
+        <Link href="/auth/signup" className="font-medium text-ink">
           Create one
         </Link>
       </p>

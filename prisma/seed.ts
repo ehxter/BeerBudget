@@ -109,6 +109,7 @@ async function main() {
     trip = await prisma.trip.create({
       data: {
         name: required("SEED_TRIP_NAME"),
+        emoji: process.env.SEED_TRIP_EMOJI ?? "🕌",
         destination: process.env.SEED_TRIP_DESTINATION ?? "Istanbul, Turkey",
         startDate,
         endDate,

@@ -1,45 +1,38 @@
-import Link from "next/link";
-import { Plus } from "lucide-react";
 import { requireTripContext } from "@/lib/trip";
 import { getRateTable } from "@/lib/rates/store";
-import { type CurrencyCode } from "@/lib/money";
-import { PageHeader } from "@/components/ui";
+import { Screen, SectionHeader, ButtonLink } from "@/components/ui";
+import { relativeTimeAgo } from "@/lib/format";
 import { Converter } from "./Converter";
 import { ExchangeList } from "./ExchangeList";
 
-export const metadata = { title: "Exchange · Koskalak Planner" };
+export const metadata = { title: "Exchange · Istanbul" };
 export const dynamic = "force-dynamic";
 
 export default async function ExchangePage() {
   const { trip } = await requireTripContext();
   const rates = await getRateTable();
 
-  return (
-    <div className="space-y-6 pb-24">
-      <PageHeader title="Currency & Exchange" back="/" />
-      
-      <section className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted px-1">
-          Live Converter
-        </h2>
-        <Converter baseCurrency={trip.baseCurrency as CurrencyCode} tomanPerUnit={rates.tomanPerUnit} />
-      </section>
+  // The rate store keeps working when the provider is down, so the UI has to
+  // say when it's serving older numbers rather than pass them off as current.
+  const freshness = rates.usingBootstrap
+    ? "Fallback rates — provider unreachable"
+    : rates.fetchedAt
+      ? `Updated ${relativeTimeAgo(rates.fetchedAt)}`
+      : "Not fetched yet";
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted">
-            Recent Exchanges
-          </h2>
-          <Link
-            href="/exchange/new"
-            className="flex items-center gap-1 text-xs font-medium text-brand hover:text-brand/80"
-          >
-            <Plus size={14} />
-            Log exchange
-          </Link>
-        </div>
+  return (
+    <Screen
+      trip={{ emoji: trip.emoji, name: trip.name }}
+      gap={8}
+      className="animate-rise"
+      action={<ButtonLink href="/exchange/new">Log Exchange</ButtonLink>}
+    >
+      <Converter baseCurrency={trip.baseCurrency} tomanPerUnit={rates.tomanPerUnit} />
+
+      <section className="flex flex-col gap-2.5">
+        <SectionHeader label="Recent exchanges" value={freshness} />
         <ExchangeList tripId={trip.id} />
       </section>
-    </div>
+    </Screen>
   );
 }

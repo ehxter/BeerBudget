@@ -1,10 +1,29 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { ArrowRightLeft } from "lucide-react";
-import { Card, ChoiceChips, Input } from "@/components/ui";
-import { CURRENCIES, CURRENCY_META, type CurrencyCode, formatMoney, convertMinor, parseAmountToMinor } from "@/lib/money";
+import { useState } from "react";
+import { ArrowLeftRight } from "lucide-react";
+import { Card, Divider, CurrencyChips } from "@/components/ui";
+import {
+  CURRENCIES,
+  CURRENCY_META,
+  type CurrencyCode,
+  formatMoney,
+  formatRate,
+  convertMinor,
+  parseAmountToMinor,
+} from "@/lib/money";
 
+const CHIPS = CURRENCIES.map((code) => ({
+  value: code,
+  // Figma abbreviates Toman to TMN on the chips.
+  label: code === "TOMAN" ? "TMN" : code,
+}));
+
+/**
+ * Converter from the Figma Exchange frame: a 32px amount, two 2x2 grids of
+ * 59px circular currency chips with a swap control between them, a hairline,
+ * then the converted figure at 24px and the rate underneath.
+ */
 export function Converter({
   baseCurrency,
   tomanPerUnit,
@@ -13,91 +32,76 @@ export function Converter({
   tomanPerUnit: Record<CurrencyCode, number>;
 }) {
   const [amount, setAmount] = useState("");
-  const [fromCurrency, setFromCurrency] = useState<CurrencyCode>(baseCurrency);
-  const [toCurrency, setToCurrency] = useState<CurrencyCode>("TOMAN");
+  const [from, setFrom] = useState<CurrencyCode>(baseCurrency);
+  const [to, setTo] = useState<CurrencyCode>("TOMAN");
 
-  const amountMinor = parseAmountToMinor(amount, fromCurrency) ?? 0;
+  const amountMinor = parseAmountToMinor(amount, from) ?? 0;
 
-  const rate = useMemo(() => {
-    const from = tomanPerUnit[fromCurrency];
-    const to = tomanPerUnit[toCurrency];
-    if (!from || !to) return 1;
-    return from / to;
-  }, [fromCurrency, toCurrency, tomanPerUnit]);
-
-  const convertedMinor = convertMinor(amountMinor, fromCurrency, toCurrency, rate);
-
-  function swapCurrencies() {
-    setFromCurrency(toCurrency);
-    setToCurrency(fromCurrency);
-  }
+  const fromToman = tomanPerUnit[from];
+  const toToman = tomanPerUnit[to];
+  const rate = fromToman && toToman ? fromToman / toToman : 0;
+  const convertedMinor = convertMinor(amountMinor, from, to, rate);
 
   return (
-    <Card className="space-y-4">
-      <div className="flex items-baseline gap-2">
-        {CURRENCY_META[fromCurrency].position === "prefix" ? (
-          <span className="text-3xl font-semibold text-ink-faint">
-            {CURRENCY_META[fromCurrency].symbol}
-          </span>
-        ) : null}
+    <Card pad={16}>
+      <div className="flex items-baseline gap-1.5 py-1">
+        <span className="text-display font-bold text-ink-5">
+          {CURRENCY_META[from].symbol}
+        </span>
         <input
           value={amount}
           onChange={(event) => setAmount(event.target.value)}
           inputMode="decimal"
           placeholder="0"
           aria-label="Amount to convert"
-          className="tnum w-full min-w-0 bg-transparent text-4xl font-bold tracking-tight text-ink outline-none placeholder:text-ink-faint/40"
+          className="tnum w-full min-w-0 bg-transparent text-display font-bold text-ink outline-none placeholder:text-ink-5"
         />
-        {CURRENCY_META[fromCurrency].position === "suffix" ? (
-          <span className="text-2xl font-semibold text-ink-faint">
-            {CURRENCY_META[fromCurrency].symbol}
-          </span>
-        ) : null}
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="flex-1">
-          <ChoiceChips
-            name="fromCurrency"
-            options={CURRENCIES.map((code) => ({
-              value: code,
-              label: code === "TOMAN" ? "Toman" : code,
-            }))}
-            value={fromCurrency}
-            onChange={setFromCurrency}
-            columns={2}
-          />
+      {/* items-stretch (not items-center) so the swap button fills the row's
+          real height. No explicit height on the button itself — a flex row
+          with an auto (content-driven) height only stretches children whose
+          own cross-size is auto too; a percentage height like h-full doesn't
+          resolve against an auto-height container and quietly collapses to
+          the button's own content size instead. */}
+      <div className="flex items-stretch gap-2.5">
+        <div className="min-w-0 flex-1">
+          <CurrencyChips options={CHIPS} value={from} onChange={setFrom} />
         </div>
+
         <button
-          onClick={swapCurrencies}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink hover:bg-surface-3 transition-colors"
+          type="button"
+          onClick={() => {
+            setFrom(to);
+            setTo(from);
+          }}
           aria-label="Swap currencies"
+          className="flex w-[59px] shrink-0 items-center justify-center rounded-pill bg-track text-ink-3 active:bg-fill"
         >
-          <ArrowRightLeft size={16} />
+          <ArrowLeftRight size={20} />
         </button>
-        <div className="flex-1">
-          <ChoiceChips
-            name="toCurrency"
-            options={CURRENCIES.map((code) => ({
-              value: code,
-              label: code === "TOMAN" ? "Toman" : code,
-            }))}
-            value={toCurrency}
-            onChange={setToCurrency}
-            columns={2}
-          />
+
+        <div className="min-w-0 flex-1">
+          <CurrencyChips options={CHIPS} value={to} onChange={setTo} />
         </div>
       </div>
 
-      <div className="pt-4 border-t border-surface-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-faint mb-1">
-          Reference rate conversion
-        </p>
-        <div className="text-2xl font-semibold text-ink">
-          {amountMinor > 0 ? formatMoney(convertedMinor, toCurrency) : "—"}
+      <Divider />
+
+      <div className="flex flex-col gap-0.5 pb-1 pl-1">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-figure font-bold text-ink-5">
+            {CURRENCY_META[to].symbol}
+          </span>
+          <span className="tnum text-figure font-bold text-ink">
+            {amountMinor > 0 ? formatMoney(convertedMinor, to, { bare: true }) : "0"}
+          </span>
         </div>
-        <p className="mt-1 text-xs text-ink-faint">
-          1 {fromCurrency} = {rate.toFixed(2)} {toCurrency}
+        <p className="text-meta text-ink-4">
+          {/* formatRate scales its precision, so a Toman→Lira rate doesn't
+              collapse to "0.00". */}
+          1 {from === "TOMAN" ? "TOMAN" : from} = {formatRate(rate)}{" "}
+          {to === "TOMAN" ? "TOMAN" : to}
         </p>
       </div>
     </Card>

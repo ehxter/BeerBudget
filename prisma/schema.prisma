@@ -40,6 +40,8 @@ model User {
 model Trip {
   id           String   @id @default(cuid())
   name         String
+  /** Rendered before the trip name in every screen header, per the design. */
+  emoji        String   @default("🕌")
   destination  String   @default("Istanbul, Turkey")
   startDate    DateTime
   endDate      DateTime
