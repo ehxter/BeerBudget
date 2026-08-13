@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Wallet, Map, ArrowLeftRight, Users } from "lucide-react";
+import { Home, Wallet, Lock, ArrowLeftRight, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -10,14 +10,16 @@ import { cn } from "@/lib/cn";
  * 4%-opacity white hairline sits on top, just enough to separate the tab bar
  * from scrolled content without reading as a hard divider.
  * Icons per the extracted component names: IconHomeLine, IconWallet3 (not a
- * receipt), IconMap, IconArrowLeftRight, IconPeople2 (two people, not one).
+ * receipt), IconArrowLeftRight. The last tab is one person, not two — there is
+ * no second traveler in this app. The Vault tab has no Figma source, so its
+ * padlock is picked to match the vocabulary rather than extracted.
  */
 const TABS = [
   { href: "/", label: "Home", icon: Home },
   { href: "/spending", label: "Spending", icon: Wallet },
-  { href: "/trip", label: "Trip", icon: Map },
   { href: "/exchange", label: "Exchange", icon: ArrowLeftRight },
-  { href: "/me", label: "Me", icon: Users },
+  { href: "/vault", label: "Vault", icon: Lock },
+  { href: "/me", label: "Me", icon: User },
 ] as const;
 
 export function BottomNav() {

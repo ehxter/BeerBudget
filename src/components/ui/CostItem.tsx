@@ -1,4 +1,3 @@
-import { Pencil } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Divider } from "./Card";
 
@@ -17,6 +16,7 @@ export function CostItem({
   amount,
   sub,
   footer,
+  trailing,
   className,
 }: {
   /** 48px circle on the left — category emoji or avatar initial. */
@@ -29,6 +29,12 @@ export function CostItem({
   sub?: React.ReactNode;
   /** The optional bottom line, rendered under a hairline. */
   footer?: React.ReactNode;
+  /**
+   * Control pinned to the right of the footer row — where the Figma frame has
+   * a pencil glyph. Left empty rather than filled with a decorative icon, so
+   * the row never promises an action it can't take.
+   */
+  trailing?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -58,19 +64,12 @@ export function CostItem({
         </div>
       </div>
 
-      {footer ? (
+      {footer || trailing ? (
         <div className="flex flex-col gap-4">
           <Divider />
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 truncate text-meta text-ink-4">{footer}</div>
-            {/* Editing an individual expense is not yet built — the glyph is
-                kept for visual fidelity but deliberately not a control, so it
-                doesn't promise an action the app can't take. */}
-            <Pencil
-              aria-hidden="true"
-              size={16}
-              className="shrink-0 text-ink-4"
-            />
+            {trailing ? <div className="shrink-0">{trailing}</div> : null}
           </div>
         </div>
       ) : null}

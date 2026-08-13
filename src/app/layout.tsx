@@ -30,7 +30,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
+import { ServiceWorkerRegistration } from "@/components/shell/ServiceWorkerRegistration";
 
 export default function RootLayout({
   children,

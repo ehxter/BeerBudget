@@ -23,7 +23,7 @@ export function Field({
   return (
     <label className={cn("block", className)}>
       {label ? (
-        <span className="mb-2 block text-label font-semibold uppercase text-ink-5">
+        <span className="mb-2 block text-caps font-semibold uppercase text-ink-5">
           {label}
         </span>
       ) : null}

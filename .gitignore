@@ -41,3 +41,9 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# local sqlite database — never commit real/dev data
+/dev.db
+
+# uploaded Vault files — private documents, never commit them
+/.vault

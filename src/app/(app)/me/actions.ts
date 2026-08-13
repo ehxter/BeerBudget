@@ -1,78 +1,53 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
-import { requireTripContext } from "@/lib/trip";
 import { revalidatePath } from "next/cache";
-
-import { parseAmountToMinor, type CurrencyCode } from "@/lib/money";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
+import { toBase } from "@/lib/convert";
+import { CURRENCIES, parseAmountToMinor, type CurrencyCode } from "@/lib/money";
 
 export type ActionState = { error?: string; ok?: boolean };
 
+const schema = z.object({
+  amount: z.string().min(1, "Enter an amount"),
+  currency: z.enum(CURRENCIES),
+});
+
+/**
+ * Saves the budget.
+ *
+ * Whatever currency it is entered in, the figure the app actually burns down
+ * is the Lira one — converted here, once, and frozen with the rate used. That
+ * keeps a budget set in dollars from drifting up and down each time the market
+ * moves, which would make "budget left" mean something different every time
+ * you looked at it.
+ */
 export async function updateBudget(
-  prevState: ActionState,
-  formData: FormData
+  _previous: ActionState,
+  formData: FormData,
 ): Promise<ActionState> {
-  const { trip, user } = await requireTripContext();
-  const amountStr = formData.get("amount")?.toString().trim();
-  const currency = formData.get("currency")?.toString() as CurrencyCode;
+  const user = await getCurrentUser();
+  if (!user) return { error: "Your session expired. Sign in again." };
 
-  if (!amountStr || !currency) return { error: "Amount and currency are required" };
+  const parsed = schema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Check the form" };
+  }
 
-  const amountMinor = parseAmountToMinor(amountStr, currency);
+  const currency = parsed.data.currency as CurrencyCode;
+  const amountMinor = parseAmountToMinor(parsed.data.amount, currency);
   if (amountMinor === null || amountMinor < 0) return { error: "Invalid amount" };
 
+  const { baseAmountMinor, rateToBase } = await toBase(amountMinor, currency);
+
   await prisma.budget.upsert({
-    where: { userId_tripId: { userId: user.id, tripId: trip.id } },
-    update: { amountMinor, currency },
-    create: { userId: user.id, tripId: trip.id, amountMinor, currency },
+    where: { userId: user.id },
+    update: { amountMinor, currency, baseAmountMinor, rateToBase },
+    create: { userId: user.id, amountMinor, currency, baseAmountMinor, rateToBase },
   });
 
   revalidatePath("/me");
-  return { ok: true };
-}
-
-export async function addPrivateNote(
-  prevState: ActionState,
-  formData: FormData
-): Promise<ActionState> {
-  const { user } = await requireTripContext();
-  const title = formData.get("title")?.toString().trim();
-  const content = formData.get("content")?.toString().trim();
-
-  if (!title || !content) return { error: "Title and content are required" };
-
-  await prisma.privateNote.create({
-    data: {
-      userId: user.id,
-      title,
-      content,
-    },
-  });
-
-  revalidatePath("/me");
-  return { ok: true };
-}
-
-export async function addVaultItem(
-  prevState: ActionState,
-  formData: FormData
-): Promise<ActionState> {
-  const { user } = await requireTripContext();
-  const title = formData.get("title")?.toString().trim();
-  const category = formData.get("category")?.toString() || "OTHER";
-  const content = formData.get("content")?.toString().trim();
-
-  if (!title) return { error: "Title is required" };
-
-  await prisma.privateVaultItem.create({
-    data: {
-      userId: user.id,
-      title,
-      category,
-      content: content || null,
-    },
-  });
-
-  revalidatePath("/me");
+  revalidatePath("/");
   return { ok: true };
 }

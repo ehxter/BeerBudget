@@ -5,8 +5,9 @@
  * "KosKalak Planner", Section 3. Values are read from the node tree, not
  * eyeballed from a screenshot.
  *
- * Dark-only, mobile-only. Primary actions are white pills with black text;
- * there is no colour accent in this system apart from the chart palette.
+ * Dark-only, mobile-only. Every button shares one material — white at 6%
+ * opacity, ink-2 label — regardless of shape; there is no colour accent in
+ * this system apart from the chart palette.
  */
 @theme {
   /* Surfaces */
@@ -15,10 +16,6 @@
   --color-track: #2d2d30; /* progress track, icon circle, currency chip */
   --color-chip: #242427; /* unused directly — kept for compatibility */
   --color-fill: #3c3c3f; /* unused directly — kept for compatibility */
-
-  /* Segmented control ("Agenda / Wishlist", "Budget / Vault") */
-  --color-segment-track: #1b1b1e;
-  --color-segment-active: #242427;
 
   /* Lines */
   --color-line: #47474a;
@@ -32,17 +29,11 @@
   --color-ink-5: #5c5c5e;
 
   /*
-   * White pills come in two tiers, both bg #ffffff:
-   *   action      — header CTA ("Add Cost"), black label. The one truly
-   *                 primary action per screen.
-   *   action-soft — in-card pill ("Google Maps", "Spendings"), ink-2 label.
+   * Solid white — reserved for selection state (a checked checklist box, the
+   * chosen chip in a picker), never for a button's own fill.
    */
   --color-action: #ffffff;
   --color-action-ink: #000000;
-  --color-action-ink-soft: #d0d0d1;
-
-  /* The amber glow on the featured "Next Event" card. */
-  --color-glow: #e9b658;
 
   /* Category / donut palette */
   --color-cat-1: #e4e4e4;
@@ -56,6 +47,18 @@
      so credits and debts stay legible without introducing a new hue. */
   --color-positive: #1fa961;
   --color-negative: #e75e5e;
+
+  /*
+   * The Latin half is Tailwind's own default stack, unchanged — this token
+   * exists for the Arabic-script faces named after it. Notes are written in
+   * whatever language the traveler is thinking in, and neither the system UI
+   * font nor a latin-subset webfont carries Persian glyphs, so without these
+   * the browser falls back to whatever it happens to find. Latin text never
+   * reaches them: system-ui already covers it.
+   */
+  --font-sans: ui-sans-serif, system-ui, "SF Arabic", "Geeza Pro",
+    "Noto Naskh Arabic", "Vazirmatn", Tahoma, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 
   /*
    * Type scale, straight from the frames.
@@ -85,9 +88,16 @@
   --text-cat--line-height: 1.3;
   --text-cat--letter-spacing: -0.02em;
 
-  --text-label: 0.75rem; /* 12px — section labels */
+  --text-label: 0.75rem; /* 12px — small print: the Spent/Total row, footnotes */
   --text-label--line-height: 1.25;
   --text-label--letter-spacing: 0em;
+
+  /* 13px — every ALL-CAPS header (card titles, section headers, form labels).
+     Its own token rather than a bump to --text-label, which also carries a lot
+     of sentence-case small print that should stay at 12. */
+  --text-caps: 0.8125rem;
+  --text-caps--line-height: 1.25;
+  --text-caps--letter-spacing: 0em;
 
   --radius-card: 12px;
   --radius-card-lg: 16px; /* the STATS / donut card only */

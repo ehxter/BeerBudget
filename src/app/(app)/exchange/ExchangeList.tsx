@@ -3,12 +3,11 @@ import { asCurrency, formatMoney, formatRate } from "@/lib/money";
 import { CostItem, Dot, EmptyState } from "@/components/ui";
 import { relativeTimeAgo } from "@/lib/format";
 
-export async function ExchangeList({ tripId }: { tripId: string }) {
+export async function ExchangeList({ userId }: { userId: string }) {
   const transactions = await prisma.exchangeTransaction.findMany({
-    where: { tripId },
+    where: { userId },
     orderBy: { occurredAt: "desc" },
-    include: { user: { select: { name: true } } },
-    take: 10,
+    take: 100,
   });
 
   if (transactions.length === 0) {
@@ -37,7 +36,7 @@ export async function ExchangeList({ tripId }: { tripId: string }) {
                 {formatMoney(tx.toAmountMinor, to)}
               </>
             }
-            meta={`${tx.user.name} · ${relativeTimeAgo(tx.occurredAt)}`}
+            meta={relativeTimeAgo(tx.occurredAt)}
             amount={formatRate(tx.effectiveRate)}
             sub={`${to === "TOMAN" ? "TMN" : to}/${from === "TOMAN" ? "TMN" : from}`}
             footer={

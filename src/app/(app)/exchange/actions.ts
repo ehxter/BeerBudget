@@ -2,9 +2,36 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireTripContext } from "@/lib/trip";
-import { parseAmountToMinor, CURRENCIES } from "@/lib/money";
+import { getCurrentUser } from "@/lib/auth";
+import { CURRENCIES, parseAmountToMinor, toMajor } from "@/lib/money";
+import { refreshRates } from "@/lib/rates/store";
 import { revalidatePath } from "next/cache";
+
+/** How long a hand-pressed refresh will wait before giving up. Longer than
+ *  the 4s a page render allows itself: someone is watching this one, and a
+ *  spinner that resolves late beats one that gives up early. */
+const MANUAL_REFRESH_TIMEOUT_MS = 12_000;
+
+/**
+ * Pulls fresh reference rates from the provider on demand.
+ *
+ * Rates refresh on their own every 10 minutes, but "on their own" is no help
+ * standing at a counter watching a number you don't believe. This forces the
+ * fetch regardless of how fresh the cache thinks it is.
+ *
+ * Returns rather than throws when the provider is unreachable — the store
+ * keeps serving the last good numbers, and the UI says so instead of blanking.
+ * Concurrent presses share one upstream call; the store dedupes them.
+ */
+export async function refreshReferenceRates(): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false };
+
+  const ok = await refreshRates({ timeoutMs: MANUAL_REFRESH_TIMEOUT_MS });
+
+  revalidatePath("/exchange");
+  return { ok };
+}
 
 export type ExchangeFormState = {
   error?: string;
@@ -16,15 +43,16 @@ const exchangeSchema = z.object({
   fromCurrency: z.enum(CURRENCIES),
   toAmount: z.string().min(1, "Received amount is required"),
   toCurrency: z.enum(CURRENCIES),
-  location: z.string().optional(),
-  note: z.string().optional(),
+  location: z.string().trim().max(120).optional(),
+  note: z.string().trim().max(500).optional(),
 });
 
 export async function addExchange(
-  prevState: ExchangeFormState,
+  _previous: ExchangeFormState,
   formData: FormData,
 ): Promise<ExchangeFormState> {
-  const { trip, user } = await requireTripContext();
+  const user = await getCurrentUser();
+  if (!user) return { error: "Your session expired. Sign in again." };
 
   const parsed = exchangeSchema.safeParse({
     fromAmount: formData.get("fromAmount"),
@@ -54,14 +82,14 @@ export async function addExchange(
     return { error: "Currencies must be different." };
   }
 
-  const fromStandard = fromAmountMinor / (fromCurrency === "TOMAN" ? 1 : 100);
-  const toStandard = toAmountMinor / (toCurrency === "TOMAN" ? 1 : 100);
-  const effectiveRate = toStandard / fromStandard;
+  // Rate in major units — toMajor knows each currency's decimals, which is
+  // what keeps a Toman leg (no subunit) from being off by a factor of 100.
+  const effectiveRate =
+    toMajor(toAmountMinor, toCurrency) / toMajor(fromAmountMinor, fromCurrency);
 
   try {
     await prisma.exchangeTransaction.create({
       data: {
-        tripId: trip.id,
         userId: user.id,
         fromCurrency,
         toCurrency,
@@ -72,13 +100,13 @@ export async function addExchange(
         note: note || null,
         occurredAt: new Date(),
       },
+      select: { id: true },
     });
 
     revalidatePath("/exchange");
-    revalidatePath("/spending");
     return { ok: true };
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error("[exchange] create failed:", error);
     return { error: "Failed to save exchange transaction." };
   }
 }

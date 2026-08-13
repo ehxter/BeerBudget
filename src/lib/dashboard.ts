@@ -1,78 +1,80 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { type TripContext } from "@/lib/trip";
-import { computeSettlement } from "@/lib/settlement";
+import { netDebt, type DebtBalance } from "@/lib/debts";
 import { bucketForChart, type ChartSlice } from "@/lib/chart";
+import { asCurrency, type CurrencyCode } from "@/lib/money";
+
+export type Dashboard = {
+  /** The budget as saved, in Lira. */
+  budgetMinor: number;
+  /** The same budget with the debt balance folded in — what Home burns down. */
+  effectiveBudgetMinor: number;
+  /** Every expense ever recorded, in Lira. This never resets. */
+  spentMinor: number;
+  remainingMinor: number;
+  percentConsumed: number;
+  debt: DebtBalance;
+  /** What the traveler typed on the Me screen, for the "set as $500" line. */
+  budgetEntered: { amountMinor: number; currency: CurrencyCode } | null;
+  chart: ChartSlice[];
+  expenseCount: number;
+};
 
 /**
- * Everything the Home screen needs, matching the Figma "Home — Full and
- * Event" / "Home — Empty" frames: the next itinerary item, the budget
- * burndown, and the six-slice category chart. The design has no spending-pace
- * or daily-activity section, so this stays deliberately narrow.
+ * Everything the Home screen needs, in Lira.
+ *
+ * The budget widget is the whole point of the screen, so it is deliberately
+ * total: every expense the account has ever recorded counts against it, in
+ * every currency, and the unsettled debt balance moves it up or down. There is
+ * no date window and nothing resets.
  */
-export async function getDashboard(ctx: TripContext) {
-  const { trip, user, partner } = ctx;
-
-  const [sharedExpenses, nextEvent] = await Promise.all([
+export async function getDashboard(userId: string): Promise<Dashboard> {
+  const [budget, expenses, debts] = await Promise.all([
+    prisma.budget.findUnique({ where: { userId } }),
     prisma.expense.findMany({
-      where: { tripId: trip.id, isShared: true },
-      select: {
-        category: true,
-        baseAmountMinor: true,
-        paidById: true,
-        participants: { select: { userId: true, baseShareMinor: true } },
-      },
+      where: { userId },
+      select: { category: true, baseAmountMinor: true },
     }),
-
-    prisma.itineraryItem.findFirst({
-      where: { tripId: trip.id, day: { gte: startOfToday() } },
-      select: { id: true, title: true, day: true, startTime: true, location: true },
-      orderBy: [{ day: "asc" }, { sortOrder: "asc" }, { startTime: "asc" }],
+    prisma.debt.findMany({
+      // Settled debts are history: they've already moved, so they no longer
+      // move the budget.
+      where: { userId, settledAt: null },
+      select: { direction: true, baseAmountMinor: true },
     }),
   ]);
 
-  const spentMinor = sharedExpenses.reduce(
+  const budgetMinor = budget?.baseAmountMinor ?? 0;
+  const debt = netDebt(debts);
+  const effectiveBudgetMinor = budgetMinor + debt.netMinor;
+
+  const spentMinor = expenses.reduce(
     (total, expense) => total + expense.baseAmountMinor,
     0,
   );
-  const remainingMinor = trip.budgetMinor - spentMinor;
-  const percentConsumed =
-    trip.budgetMinor > 0 ? (spentMinor / trip.budgetMinor) * 100 : 0;
 
-  const settlement = partner
-    ? computeSettlement(sharedExpenses, user.id, partner.id)
-    : { netMinor: 0, viewerPaidForOtherMinor: 0, otherPaidForViewerMinor: 0 };
-
-  // The STATS donut always shows the trip total, bucketed into the six fixed
-  // chart categories in canonical order — never sorted by amount.
   const byCategory = new Map<string, number>();
-  for (const expense of sharedExpenses) {
+  for (const expense of expenses) {
     byCategory.set(
       expense.category,
       (byCategory.get(expense.category) ?? 0) + expense.baseAmountMinor,
     );
   }
-  const chart: ChartSlice[] = bucketForChart(byCategory, spentMinor);
 
   return {
+    budgetMinor,
+    effectiveBudgetMinor,
     spentMinor,
-    remainingMinor,
-    percentConsumed,
-    settlement,
-    chart,
-    nextEvent,
+    remainingMinor: effectiveBudgetMinor - spentMinor,
+    // Guard the divisor rather than the numerator: with no budget set (or one
+    // wiped out by what you owe) there is nothing to be a percentage of.
+    percentConsumed:
+      effectiveBudgetMinor > 0 ? (spentMinor / effectiveBudgetMinor) * 100 : 0,
+    debt,
+    budgetEntered: budget
+      ? { amountMinor: budget.amountMinor, currency: asCurrency(budget.currency) }
+      : null,
+    chart: bucketForChart(byCategory, spentMinor),
+    expenseCount: expenses.length,
   };
-}
-
-export function startOfToday(): Date {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-export function endOfToday(): Date {
-  const date = startOfToday();
-  date.setDate(date.getDate() + 1);
-  return date;
 }

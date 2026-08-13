@@ -6,7 +6,7 @@
  * the arithmetic honest and avoids hand-authored path data. Each slice
  * carries its own colour rather than being assigned one by position — the
  * chart always shows the same six categories in the same order, so the
- * mapping is explicit at the call site (see CHART_CATEGORY_COLOR).
+ * mapping is fixed per category (see EXPENSE_CATEGORIES in lib/constants).
  */
 export function Donut({
   slices,

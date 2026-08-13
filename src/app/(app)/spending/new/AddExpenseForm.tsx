@@ -6,8 +6,6 @@ import { ChevronDown } from "lucide-react";
 import { addExpense, type ExpenseFormState } from "../actions";
 import {
   Card,
-  CardLabel,
-  Divider,
   Field,
   Input,
   Textarea,
@@ -16,19 +14,17 @@ import {
   Chips,
 } from "@/components/ui";
 import {
+  BASE_CURRENCY,
   CURRENCIES,
   CURRENCY_META,
   convertMinor,
   formatMoney,
   parseAmountToMinor,
-  splitEqualMinor,
   type CurrencyCode,
 } from "@/lib/money";
-import { EXPENSE_CATEGORIES, SPLIT_METHODS } from "@/lib/constants";
+import { EXPENSE_CATEGORIES } from "@/lib/constants";
 import { toDateInputValue } from "@/lib/format";
 import { cn } from "@/lib/cn";
-
-type Member = { id: string; name: string };
 
 const initialState: ExpenseFormState = {};
 
@@ -38,35 +34,24 @@ const CURRENCY_CHIPS = CURRENCIES.map((code) => ({
 }));
 
 /**
- * Add Cost. Not a Figma frame — built from the same language: the 32px amount
- * treatment from the Exchange converter, chips for every choice, and a white
- * block button to commit.
+ * Add Cost: an amount, what it was for, and a category. Nothing else is
+ * required, because there is nobody to split it with.
+ *
+ * Pay in another currency and the Lira equivalent is previewed live from the
+ * same rate table the server will freeze onto the row — so the number shown
+ * here is the number that lands in the budget.
  */
 export function AddExpenseForm({
-  self,
-  partner,
-  baseCurrency,
   tomanPerUnit,
 }: {
-  self: Member;
-  partner: Member | null;
-  baseCurrency: CurrencyCode;
   tomanPerUnit: Record<CurrencyCode, number>;
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(addExpense, initialState);
 
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState<CurrencyCode>(baseCurrency);
+  const [currency, setCurrency] = useState<CurrencyCode>(BASE_CURRENCY);
   const [category, setCategory] = useState<string>("FOOD");
-  const [scope, setScope] = useState<"SHARED" | "PRIVATE">(
-    partner ? "SHARED" : "PRIVATE",
-  );
-  const [paidById, setPaidById] = useState(self.id);
-  const [splitMethod, setSplitMethod] = useState<string>("EQUAL");
-  const [beneficiaryId, setBeneficiaryId] = useState(self.id);
-  const [customSelf, setCustomSelf] = useState("");
-  const [customPartner, setCustomPartner] = useState("");
   const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
@@ -80,42 +65,12 @@ export function AddExpenseForm({
 
   const rateToBase = useMemo(() => {
     const from = tomanPerUnit[currency];
-    const to = tomanPerUnit[baseCurrency];
+    const to = tomanPerUnit[BASE_CURRENCY];
     if (!from || !to) return 1;
     return from / to;
-  }, [currency, baseCurrency, tomanPerUnit]);
+  }, [currency, tomanPerUnit]);
 
-  const baseAmountMinor = convertMinor(amountMinor, currency, baseCurrency, rateToBase);
-
-  // Mirror of the server's split maths, purely for the preview.
-  const preview = (() => {
-    if (amountMinor <= 0 || scope === "PRIVATE" || !partner) return null;
-
-    if (splitMethod === "SINGLE") {
-      const owner = beneficiaryId === self.id ? self : partner;
-      return [{ name: owner.name, shareMinor: amountMinor }];
-    }
-    if (splitMethod === "CUSTOM") {
-      return [
-        { name: self.name, shareMinor: parseAmountToMinor(customSelf, currency) ?? 0 },
-        {
-          name: partner.name,
-          shareMinor: parseAmountToMinor(customPartner, currency) ?? 0,
-        },
-      ];
-    }
-    const [mine, theirs] = splitEqualMinor(amountMinor, 2);
-    return [
-      { name: self.name, shareMinor: mine },
-      { name: partner.name, shareMinor: theirs },
-    ];
-  })();;
-
-  const customTotal =
-    (parseAmountToMinor(customSelf, currency) ?? 0) +
-    (parseAmountToMinor(customPartner, currency) ?? 0);
-  const customMismatch =
-    splitMethod === "CUSTOM" && amountMinor > 0 && customTotal !== amountMinor;
+  const baseAmountMinor = convertMinor(amountMinor, currency, BASE_CURRENCY, rateToBase);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -139,9 +94,10 @@ export function AddExpenseForm({
           />
         </div>
 
-        {currency !== baseCurrency && amountMinor > 0 ? (
+        {currency !== BASE_CURRENCY && amountMinor > 0 ? (
           <p className="tnum text-meta text-ink-4">
-            ≈ {formatMoney(baseAmountMinor, baseCurrency)} at today&apos;s rate
+            Recorded as {formatMoney(baseAmountMinor, BASE_CURRENCY)} at today&apos;s
+            rate
           </p>
         ) : null}
 
@@ -165,7 +121,7 @@ export function AddExpenseForm({
       </Field>
 
       <div>
-        <span className="mb-2 block text-label font-semibold uppercase text-ink-5">
+        <span className="mb-2 block text-caps font-semibold uppercase text-ink-5">
           Category
         </span>
         <Chips
@@ -180,127 +136,6 @@ export function AddExpenseForm({
           columns={3}
         />
       </div>
-
-      {partner ? (
-        <div>
-          <span className="mb-2 block text-label font-semibold uppercase text-ink-5">
-            Who is this for
-          </span>
-          <Chips
-            name="scope"
-            options={[
-              { value: "SHARED", label: "Shared" },
-              { value: "PRIVATE", label: "Private" },
-            ]}
-            value={scope}
-            onChange={setScope}
-            columns={2}
-          />
-          {scope === "PRIVATE" ? (
-            <p className="mt-2 text-meta text-ink-4">
-              Counts against your personal budget only. {partner.name} never
-              sees it.
-            </p>
-          ) : null}
-        </div>
-      ) : (
-        <input type="hidden" name="scope" value="PRIVATE" />
-      )}
-
-      {partner && scope === "SHARED" ? (
-        <>
-          <div>
-            <span className="mb-2 block text-label font-semibold uppercase text-ink-5">
-              Paid by
-            </span>
-            <Chips
-              name="paidById"
-              options={[
-                { value: self.id, label: "Me" },
-                { value: partner.id, label: partner.name },
-              ]}
-              value={paidById}
-              onChange={setPaidById}
-              columns={2}
-            />
-          </div>
-
-          <div>
-            <span className="mb-2 block text-label font-semibold uppercase text-ink-5">
-              Split
-            </span>
-            <Chips
-              name="splitMethod"
-              options={SPLIT_METHODS.map((s) => ({ value: s.value, label: s.label }))}
-              value={splitMethod}
-              onChange={setSplitMethod}
-              columns={3}
-            />
-          </div>
-
-          {splitMethod === "SINGLE" ? (
-            <div>
-              <span className="mb-2 block text-label font-semibold uppercase text-ink-5">
-                Belongs entirely to
-              </span>
-              <Chips
-                name="beneficiaryId"
-                options={[
-                  { value: self.id, label: "Me" },
-                  { value: partner.id, label: partner.name },
-                ]}
-                value={beneficiaryId}
-                onChange={setBeneficiaryId}
-                columns={2}
-              />
-            </div>
-          ) : null}
-
-          {splitMethod === "CUSTOM" ? (
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Your share">
-                <Input
-                  name="customSelf"
-                  value={customSelf}
-                  onChange={(event) => setCustomSelf(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </Field>
-              <Field label={`${partner.name}'s share`}>
-                <Input
-                  name="customPartner"
-                  value={customPartner}
-                  onChange={(event) => setCustomPartner(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </Field>
-              {customMismatch ? (
-                <p className="col-span-2 -mt-1 text-meta text-cat-6">
-                  Shares add up to {formatMoney(customTotal, currency)}, but the
-                  cost is {formatMoney(amountMinor, currency)}.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </>
-      ) : null}
-
-      {preview ? (
-        <Card pad={16} className="gap-3">
-          <CardLabel>Split preview</CardLabel>
-          <Divider soft />
-          {preview.map((entry) => (
-            <div key={entry.name} className="flex justify-between text-meta">
-              <span className="text-ink-3">{entry.name}</span>
-              <span className="tnum font-medium text-ink">
-                {formatMoney(entry.shareMinor, currency)}
-              </span>
-            </div>
-          ))}
-        </Card>
-      ) : null}
 
       {/* Everything optional lives behind one tap. */}
       <button
@@ -328,11 +163,7 @@ export function AddExpenseForm({
         <input type="hidden" name="date" value={toDateInputValue(new Date())} />
       )}
 
-      <SubmitButton
-        size="block"
-        disabled={amountMinor <= 0 || customMismatch}
-        pendingLabel="Saving…"
-      >
+      <SubmitButton size="block" disabled={amountMinor <= 0} pendingLabel="Saving…">
         Save cost
       </SubmitButton>
     </form>

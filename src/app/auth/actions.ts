@@ -72,27 +72,13 @@ export async function signUp(
   });
   if (existing) return { error: "That email is already registered" };
 
-  // This is a two-person trip. Refuse a third account rather than letting a
-  // stranger who finds the URL join and read the shared expenses.
-  const userCount = await prisma.user.count();
-  if (userCount >= 2) {
-    return { error: "This trip already has its two travelers" };
-  }
-
+  // Sign-up is open. Every account is a sealed private space — a new one can
+  // see nothing but its own rows — so there is no shared data for an extra
+  // account to reach, and nothing to gate it behind.
   const user = await prisma.user.create({
     data: { name, email, passwordHash: await hashPassword(password) },
     select: { id: true },
   });
-
-  // Join the existing trip automatically, so the second traveler doesn't need
-  // a separate invite step.
-  const trip = await prisma.trip.findFirst({
-    orderBy: { createdAt: "asc" },
-    select: { id: true },
-  });
-  if (trip) {
-    await prisma.tripMember.create({ data: { userId: user.id, tripId: trip.id } });
-  }
 
   await createSession(user.id);
   redirect("/");

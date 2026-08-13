@@ -4,110 +4,51 @@
  * on the way in and used to render labels on the way out.
  */
 
-// `short` is what the Add Cost picker renders — a 3-column grid at 390px
-// truncates "Transport"/"Groceries" to "Transp…"/"Groceri…", so the chip
-// grid gets an abbreviation while the full word is used everywhere else
-// (the expense list, the chart legend, category bars).
+/**
+ * The six categories, and the only six. They are also exactly the slices of
+ * the Home pie and the rows of the Home bar chart, in this order — the chart
+ * is never sorted by amount, so a category doesn't jump around as you spend.
+ *
+ * `short` is what the Add Cost picker renders — a 3-column grid at 390px
+ * truncates "Activities" to "Activiti…", so the chip grid gets an abbreviation
+ * while the full word is used everywhere else.
+ */
 export const EXPENSE_CATEGORIES = [
-  { value: "FOOD", label: "Food", short: "Food", emoji: "🍔" },
-  { value: "TRANSPORT", label: "Transport", short: "Travel", emoji: "🚋" },
-  { value: "ACCOMMODATION", label: "Stay", short: "Stay", emoji: "🏨" },
-  { value: "ACTIVITIES", label: "Activities", short: "Activity", emoji: "⛵" },
-  { value: "SHOPPING", label: "Shopping", short: "Shopping", emoji: "🛍️" },
-  { value: "DRINKS", label: "Drinks", short: "Drinks", emoji: "🍻" },
-  { value: "GROCERIES", label: "Groceries", short: "Grocery", emoji: "🧺" },
-  { value: "OTHER", label: "Other", short: "Other", emoji: "💸" },
+  { value: "FOOD", label: "Food", short: "Food", emoji: "🍔", color: "#e9b658" },
+  { value: "DRINKS", label: "Drinks", short: "Drinks", emoji: "🍻", color: "#e75e5e" },
+  { value: "TRANSPORT", label: "Transport", short: "Travel", emoji: "🚋", color: "#598ee4" },
+  { value: "ACTIVITIES", label: "Activities", short: "Activity", emoji: "⛵", color: "#1fa961" },
+  { value: "SHOPPING", label: "Shopping", short: "Shopping", emoji: "🛍️", color: "#cf6bb3" },
+  { value: "OTHER", label: "Other", short: "Other", emoji: "💸", color: "#e4e4e4" },
 ] as const;
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]["value"];
 
-/**
- * The Home/Spending donut shows exactly six fixed slices, in this order,
- * regardless of amount — it is not sorted by spend. Categories outside this
- * set (Stay, Groceries) fold into "Other" for the chart only; they keep
- * their own emoji and label everywhere else (the expense list, Add Cost).
- */
-export const CHART_CATEGORY_ORDER = [
-  "FOOD",
-  "DRINKS",
-  "TRANSPORT",
-  "ACTIVITIES",
-  "SHOPPING",
-  "OTHER",
-] as const;
-
-export const CHART_CATEGORY_COLOR: Record<(typeof CHART_CATEGORY_ORDER)[number], string> = {
-  FOOD: "#e9b658",
-  DRINKS: "#e75e5e",
-  TRANSPORT: "#598ee4",
-  ACTIVITIES: "#1fa961",
-  SHOPPING: "#cf6bb3",
-  OTHER: "#e4e4e4",
-};
-
-/** Buckets an expense category into one of the six chart slices. */
-export function toChartCategory(
-  category: string,
-): (typeof CHART_CATEGORY_ORDER)[number] {
-  return (CHART_CATEGORY_ORDER as readonly string[]).includes(category)
-    ? (category as (typeof CHART_CATEGORY_ORDER)[number])
+/** Falls back to OTHER rather than dropping the amount, so a row written by an
+ *  older version of the app still shows up in the totals. */
+export function asCategory(value: string): ExpenseCategory {
+  return EXPENSE_CATEGORIES.some((category) => category.value === value)
+    ? (value as ExpenseCategory)
     : "OTHER";
 }
 
-export const SPLIT_METHODS = [
-  { value: "EQUAL", label: "50 / 50" },
-  { value: "CUSTOM", label: "Custom" },
-  { value: "SINGLE", label: "One person" },
+/**
+ * Which way a debt points. There is exactly one other party — "your friend" —
+ * and no account behind them: this is a private ledger, not a shared one.
+ */
+export const DEBT_DIRECTIONS = [
+  { value: "THEY_OWE", label: "They owe me" },
+  { value: "I_OWE", label: "I owe them" },
 ] as const;
 
-export type SplitMethod = (typeof SPLIT_METHODS)[number]["value"];
+export type DebtDirection = (typeof DEBT_DIRECTIONS)[number]["value"];
 
-export const ITINERARY_CATEGORIES = [
-  { value: "FOOD", label: "Food", emoji: "🍽" },
-  { value: "ACTIVITY", label: "Activity", emoji: "🏛" },
-  { value: "TRANSPORT", label: "Transport", emoji: "🚇" },
-  { value: "SHOPPING", label: "Shopping", emoji: "🛍" },
-  { value: "OTHER", label: "Other", emoji: "📌" },
-] as const;
-
-export const PLACE_CATEGORIES = [
-  { value: "RESTAURANT", label: "Restaurant", emoji: "🍽" },
-  { value: "CAFE", label: "Café", emoji: "☕" },
-  { value: "ATTRACTION", label: "Attraction", emoji: "🏛" },
-  { value: "SHOPPING", label: "Shopping", emoji: "🛍" },
-  { value: "NEIGHBORHOOD", label: "Neighborhood", emoji: "🗺" },
-  { value: "ACTIVITY", label: "Activity", emoji: "🎟" },
-  { value: "OTHER", label: "Other", emoji: "📌" },
-] as const;
-
-export const PLACE_STATUSES = [
-  { value: "WANT_TO_VISIT", label: "Want to visit", tone: "indigo" },
-  { value: "PLANNED", label: "Planned", tone: "amber" },
-  { value: "VISITED", label: "Visited", tone: "emerald" },
-] as const;
-
-export const SHARED_INFO_CATEGORIES = [
-  { value: "HOTEL", label: "Hotel", emoji: "🏨" },
-  { value: "FLIGHT", label: "Flight", emoji: "✈️" },
-  { value: "TRANSPORT", label: "Transport", emoji: "🚇" },
-  { value: "RESERVATION", label: "Reservation", emoji: "🎫" },
-  { value: "EMERGENCY", label: "Emergency", emoji: "🚨" },
-  { value: "OTHER", label: "Other", emoji: "📌" },
-] as const;
-
-export const VAULT_CATEGORIES = [
-  { value: "PASSPORT", label: "Passport", emoji: "🛂" },
-  { value: "ID", label: "ID", emoji: "🪪" },
-  { value: "FLIGHT", label: "Flight", emoji: "✈️" },
-  { value: "HOTEL", label: "Hotel", emoji: "🏨" },
-  { value: "INSURANCE", label: "Insurance", emoji: "🛡" },
-  { value: "CONTACT", label: "Emergency contact", emoji: "☎️" },
-  { value: "SIM", label: "SIM / eSIM", emoji: "📶" },
-  { value: "BOOKING", label: "Booking reference", emoji: "🎫" },
-  { value: "OTHER", label: "Other", emoji: "🔒" },
-] as const;
-
-type Option = { readonly value: string; readonly label: string; readonly emoji?: string };
+type Option = {
+  readonly value: string;
+  readonly label: string;
+  readonly emoji?: string;
+  readonly color?: string;
+};
 
 export function labelFor(options: readonly Option[], value: string): string {
   return options.find((option) => option.value === value)?.label ?? value;
@@ -120,10 +61,3 @@ export function emojiFor(options: readonly Option[], value: string): string {
 export function valuesOf(options: readonly Option[]): [string, ...string[]] {
   return options.map((option) => option.value) as [string, ...string[]];
 }
-
-/**
- * Donut / legend palette, read from the Figma arc fills in draw order.
- * Indexed by position in the sorted category list, not by category name —
- * the design assigns colour by rank, so the biggest slice is always the first
- * colour.
- */

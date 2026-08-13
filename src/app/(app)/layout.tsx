@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth";
-import { BottomNav } from "@/components/nav/BottomNav";
-import { OfflineBanner } from "@/components/OfflineBanner";
+import { BottomNav } from "@/components/shell/BottomNav";
+import { OfflineBanner } from "@/components/shell/OfflineBanner";
 
 /**
  * Shell for every signed-in screen. Pages supply their own header via

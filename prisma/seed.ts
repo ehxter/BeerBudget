@@ -1,8 +1,17 @@
 /**
- * Creates the trip and the two traveler accounts from .env.
+ * Optional first-run setup.
  *
- * Idempotent: re-running it will not duplicate anything and will not clobber a
- * trip that already exists. Safe to run on the VPS after every deploy.
+ * There is nothing to seed for the app to work — sign-up is open, and a new
+ * account starts with an empty private space. This script only does two
+ * conveniences:
+ *
+ *   1. Creates one account from SEED_USER_* if those are set, so a fresh
+ *      deployment can be signed into without using the sign-up form.
+ *   2. Warms the exchange-rate cache, so the first page load has a reference
+ *      price even if the provider is unreachable.
+ *
+ * Idempotent: re-running it will not duplicate anything and will never reset a
+ * password that was changed later.
  *
  *   npm run db:seed
  */
@@ -16,26 +25,6 @@ const adapter = new PrismaBetterSqlite3({
 });
 const prisma = new PrismaClient({ adapter });
 
-const DECIMALS: Record<string, number> = { TRY: 2, USD: 2, EUR: 2, TOMAN: 0 };
-
-function required(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set — see .env.example`);
-  return value;
-}
-
-function toMinor(major: number, currency: string): number {
-  return Math.round(major * 10 ** (DECIMALS[currency] ?? 2));
-}
-
-function parseDate(value: string, name: string): Date {
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    throw new Error(`${name} is not a valid date (expected YYYY-MM-DD): ${value}`);
-  }
-  return date;
-}
-
 const STARTER_CHECKLIST = [
   "Exchange USD",
   "Buy Istanbulkart",
@@ -45,110 +34,44 @@ const STARTER_CHECKLIST = [
   "Buy souvenirs",
 ];
 
-async function upsertUser(nameKey: string, emailKey: string, passwordKey: string) {
-  const name = required(nameKey);
-  const email = required(emailKey).toLowerCase();
-  const password = required(passwordKey);
+async function seedUser() {
+  const name = process.env.SEED_USER_NAME;
+  const email = process.env.SEED_USER_EMAIL?.toLowerCase();
+  const password = process.env.SEED_USER_PASSWORD;
+
+  if (!name || !email || !password) {
+    console.log("• SEED_USER_* not set — skipping account creation (sign up in the app)");
+    return;
+  }
 
   if (password.length < 8) {
-    throw new Error(`${passwordKey} must be at least 8 characters`);
+    throw new Error("SEED_USER_PASSWORD must be at least 8 characters");
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  // Only set the password on create — re-seeding must not silently reset a
-  // password the traveler changed later.
-  const user = await prisma.user.upsert({
+  const existing = await prisma.user.findUnique({
     where: { email },
-    create: { name, email, passwordHash },
-    update: { name },
+    select: { id: true },
   });
 
-  return user;
-}
-
-async function main() {
-  const baseCurrency = process.env.SEED_TRIP_BASE_CURRENCY ?? "TRY";
-  if (!DECIMALS[baseCurrency]) {
-    throw new Error(`SEED_TRIP_BASE_CURRENCY must be one of TRY, USD, EUR, TOMAN`);
+  if (existing) {
+    console.log(`• Account <${email}> already exists — left untouched`);
+    return;
   }
 
-  const user1 = await upsertUser(
-    "SEED_USER1_NAME",
-    "SEED_USER1_EMAIL",
-    "SEED_USER1_PASSWORD",
-  );
-  const user2 = await upsertUser(
-    "SEED_USER2_NAME",
-    "SEED_USER2_EMAIL",
-    "SEED_USER2_PASSWORD",
-  );
+  const user = await prisma.user.create({
+    data: { name, email, passwordHash: await bcrypt.hash(password, 12) },
+    select: { id: true },
+  });
 
-  if (user1.id === user2.id) {
-    throw new Error("The two travelers must have different email addresses");
-  }
+  await prisma.checklistItem.createMany({
+    data: STARTER_CHECKLIST.map((title, index) => ({
+      userId: user.id,
+      title,
+      sortOrder: index,
+    })),
+  });
 
-  console.log(`✓ Users: ${user1.name} <${user1.email}>, ${user2.name} <${user2.email}>`);
-
-  let trip = await prisma.trip.findFirst({ orderBy: { createdAt: "asc" } });
-
-  if (trip) {
-    console.log(`• Trip "${trip.name}" already exists — left unchanged`);
-  } else {
-    const budgetMajor = Number(required("SEED_TRIP_BUDGET"));
-    if (!Number.isFinite(budgetMajor) || budgetMajor < 0) {
-      throw new Error("SEED_TRIP_BUDGET must be a non-negative number");
-    }
-
-    const startDate = parseDate(required("SEED_TRIP_START"), "SEED_TRIP_START");
-    const endDate = parseDate(required("SEED_TRIP_END"), "SEED_TRIP_END");
-    if (endDate < startDate) {
-      throw new Error("SEED_TRIP_END must be on or after SEED_TRIP_START");
-    }
-
-    trip = await prisma.trip.create({
-      data: {
-        name: required("SEED_TRIP_NAME"),
-        emoji: process.env.SEED_TRIP_EMOJI ?? "🕌",
-        destination: process.env.SEED_TRIP_DESTINATION ?? "Istanbul, Turkey",
-        startDate,
-        endDate,
-        baseCurrency,
-        budgetMinor: toMinor(budgetMajor, baseCurrency),
-      },
-    });
-
-    console.log(
-      `✓ Trip "${trip.name}" — ${trip.destination}, ` +
-        `${startDate.toDateString()} → ${endDate.toDateString()}, ` +
-        `budget ${budgetMajor.toLocaleString()} ${baseCurrency}`,
-    );
-  }
-
-  for (const user of [user1, user2]) {
-    await prisma.tripMember.upsert({
-      where: { userId_tripId: { userId: user.id, tripId: trip.id } },
-      create: { userId: user.id, tripId: trip.id },
-      update: {},
-    });
-  }
-  console.log("✓ Both travelers are members of the trip");
-
-  const checklistCount = await prisma.checklistItem.count({ where: { tripId: trip.id } });
-  if (checklistCount === 0) {
-    await prisma.checklistItem.createMany({
-      data: STARTER_CHECKLIST.map((title, index) => ({
-        tripId: trip.id,
-        title,
-        sortOrder: index,
-      })),
-    });
-    console.log(`✓ Starter checklist (${STARTER_CHECKLIST.length} items)`);
-  }
-
-  // Warm the exchange-rate cache so the app has a reference price on first
-  // load even if the provider is unreachable later. Best effort only.
-  await warmRates();
+  console.log(`✓ Account ${name} <${email}> with a ${STARTER_CHECKLIST.length}-item checklist`);
 }
 
 async function warmRates() {
@@ -167,7 +90,9 @@ async function warmRates() {
     const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const body = (await response.json()) as { currency?: { symbol?: string; price?: number }[] };
+    const body = (await response.json()) as {
+      currency?: { symbol?: string; price?: number }[];
+    };
     const wanted: Record<string, string> = { USD: "USD", EUR: "EUR", TRY: "TRY" };
     const fetchedAt = new Date();
 
@@ -185,6 +110,7 @@ async function warmRates() {
       count += 1;
     }
 
+    // Toman anchors the table at 1 by definition.
     await prisma.exchangeRate.upsert({
       where: { currency_source: { currency: "TOMAN", source: "BRSAPI" } },
       create: { currency: "TOMAN", source: "BRSAPI", tomanPerUnit: 1, fetchedAt },
@@ -198,6 +124,11 @@ async function warmRates() {
         "the app will retry in the background",
     );
   }
+}
+
+async function main() {
+  await seedUser();
+  await warmRates();
 }
 
 main()

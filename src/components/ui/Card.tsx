@@ -6,13 +6,12 @@ import { cn } from "@/lib/cn";
  *   18  — 16 vertical / 20 horizontal (Budget Left, STATS, Spending History
  *         button — no real Figma value is 18; it's a placeholder key so it
  *         doesn't collide with the uniform presets)
- *   20  — uniform 20 (Next Event, Trip/Wishlist event cards)
+ *   20  — uniform 20
  *   24  — 24 vertical / 20 horizontal (Spending's category-bar-list card)
  */
 export function Card({
   pad = 16,
   radius = "md",
-  glow = false,
   className,
   children,
   ...props
@@ -20,8 +19,6 @@ export function Card({
   pad?: 16 | 18 | 20 | 24;
   /** "lg" is the 16px-radius STATS/donut card; every other card is 12px. */
   radius?: "md" | "lg";
-  /** The amber highlight on the featured "Next Event" card. */
-  glow?: boolean;
 }) {
   return (
     <div
@@ -32,7 +29,6 @@ export function Card({
         pad === 18 && "px-5 py-4",
         pad === 20 && "p-5",
         pad === 24 && "px-5 py-6",
-        glow && "border border-glow shadow-[0_0_16px_4px_rgba(233,182,88,0.25)]",
         className,
       )}
       {...props}
@@ -43,12 +39,12 @@ export function Card({
 }
 
 /**
- * The small caps label inside a card — Figma: 12px, #5c5c5e.
- * ("NEXT EVENT", "BUDGET LEFT", "STATS", "RECENT EXCHANGES")
+ * The small caps label inside a card — 13px, #5c5c5e.
+ * ("BUDGET LEFT", "STATS", "NEW NOTE")
  */
 export function CardLabel({ className, children }: React.ComponentProps<"h2">) {
   return (
-    <h2 className={cn("text-label font-semibold uppercase text-ink-5", className)}>
+    <h2 className={cn("text-caps font-semibold uppercase text-ink-5", className)}>
       {children}
     </h2>
   );
@@ -70,7 +66,7 @@ export function SectionHeader({
 }) {
   return (
     <div className={cn("flex items-center justify-between px-2", className)}>
-      <span className="text-label font-medium uppercase text-ink-5">{label}</span>
+      <span className="text-caps font-medium uppercase text-ink-5">{label}</span>
       {value ? (
         <span className="tnum text-cat font-medium text-ink-5">{value}</span>
       ) : null}

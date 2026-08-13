@@ -1,47 +1,72 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "@/lib/cn";
 
 /**
- * Figma "Border" component: 48px track, bg #1b1b1e, r1000, no padding. The
- * active segment gets a #242427 pill; the label colour (ink-2) never changes
- * between active and inactive — only the pill behind it appears or
- * disappears. ("Agenda / Wishlist" on Trip, "Budget / Vault" on Me.)
+ * The tab bar on its own, controlled by the caller.
+ *
+ * Screens whose header pill changes with the tab (Spending: "Add Cost" vs
+ * "Add Debt") have to own the active tab themselves, because the pill lives in
+ * the page header, above and outside the panel.
  */
-export function Segmented<T extends string>({
-  options,
+export function TabBar<T extends string>({
+  tabs,
   value,
   onChange,
-  className,
 }: {
-  options: readonly { value: T; label: string }[];
+  tabs: readonly { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
-  className?: string;
 }) {
   return (
-    <div
-      role="tablist"
-      className={cn("flex h-12 rounded-pill bg-segment-track", className)}
-    >
-      {options.map((option) => {
-        const active = option.value === value;
+    // No padding: the selected pill runs edge to edge, so its rounded corners
+    // land exactly on the track's rather than floating inside a border of it.
+    <div role="tablist" className="flex gap-1 rounded-pill bg-track">
+      {tabs.map((tab) => {
+        const selected = tab.value === value;
         return (
           <button
-            key={option.value}
+            key={tab.value}
             type="button"
             role="tab"
-            aria-selected={active}
-            onClick={() => onChange(option.value)}
+            aria-selected={selected}
+            onClick={() => onChange(tab.value)}
             className={cn(
-              "flex flex-1 items-center justify-center rounded-pill text-meta font-medium text-ink-2 transition-colors",
-              active && "bg-segment-active",
+              "h-10 flex-1 rounded-pill text-meta font-medium transition-colors",
+              selected ? "bg-action text-action-ink" : "text-ink-3 active:text-ink",
             )}
           >
-            {option.label}
+            {tab.label}
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Tab bar plus panels, for screens where nothing outside the panel changes
+ * with the tab (Exchange, Vault).
+ *
+ * Every panel is handed over up front as `content`, so switching tabs is
+ * instant and costs no round trip. The inactive panel is unmounted rather than
+ * hidden, which keeps its form state from lingering behind the other tab.
+ */
+export function Tabs<T extends string>({
+  tabs,
+  initial,
+}: {
+  tabs: readonly { value: T; label: string; content: React.ReactNode }[];
+  initial?: T;
+}) {
+  const [active, setActive] = useState<T>(initial ?? tabs[0].value);
+  const current = tabs.find((tab) => tab.value === active) ?? tabs[0];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <TabBar tabs={tabs} value={current.value} onChange={setActive} />
+      <div role="tabpanel">{current.content}</div>
     </div>
   );
 }

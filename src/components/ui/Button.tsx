@@ -2,23 +2,16 @@ import Link from "next/link";
 import { cn } from "@/lib/cn";
 
 /**
- * Pill buttons, from Figma. Every pill is white and r1000 — the only
- * variation is the label colour, which the design uses as a prominence tier:
- *
- *   primary — black label. The header CTA ("Add Cost", "Add Event", "Log
- *             Exchange", "Add Budget", "Add Item") — one per screen.
- *   onCard  — ink-2 (grey) label. In-card pills ("Google Maps", "Spendings",
- *             "Edit Budget", "Move to Agenda").
- *   quiet   — no fill, for tertiary/cancel actions the design doesn't cover.
- *
- * Header pills are 40px tall with 11/20 padding.
+ * Every button in the app shares one material — a white fill at 6% opacity
+ * with a light-grey label — regardless of shape. There is no separate
+ * "primary" vs "in-card" colour tier; the only real variant is `quiet`,
+ * which drops the fill entirely for tertiary actions (Cancel, Try again).
  */
-type Variant = "primary" | "onCard" | "quiet";
+type Variant = "solid" | "quiet";
 type Size = "pill" | "block";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-action text-action-ink active:bg-action/85",
-  onCard: "bg-action text-action-ink-soft active:bg-action/85",
+  solid: "bg-white/[0.06] text-ink-2 active:bg-white/[0.1]",
   quiet: "text-ink-4 active:text-ink",
 };
 
@@ -40,7 +33,7 @@ function classes(variant: Variant, size: Size, className?: string) {
 }
 
 export function Button({
-  variant = "primary",
+  variant = "solid",
   size = "pill",
   className,
   ...props
@@ -49,7 +42,7 @@ export function Button({
 }
 
 export function ButtonLink({
-  variant = "primary",
+  variant = "solid",
   size = "pill",
   className,
   ...props
@@ -58,25 +51,25 @@ export function ButtonLink({
 }
 
 /**
- * The dark, full-width, r12 button-as-card — "Spending History" in the
- * Figma frames. A different shape language from the white pills: this is a
- * navigational row, not a call to action, so it borrows the Card radius
- * instead of the pill radius.
+ * Same white/6% material as Button, shaped as a full-width row with the
+ * Card radius instead of a pill — the navigational rows ("Spending
+ * History", "Settlement") that sit at the bottom of a card stack.
  */
+function cardClasses(className?: string) {
+  return cn(
+    "flex h-14 w-full items-center justify-center rounded-card",
+    "bg-white/[0.06] text-meta font-medium text-ink-2 transition-colors active:bg-white/[0.1]",
+    className,
+  );
+}
+
 export function CardButton({
   className,
   children,
   ...props
 }: React.ComponentProps<"button">) {
   return (
-    <button
-      className={cn(
-        "flex h-14 w-full items-center justify-center rounded-card bg-card",
-        "text-meta font-semibold text-ink-2 transition-colors active:bg-track",
-        className,
-      )}
-      {...props}
-    >
+    <button className={cardClasses(className)} {...props}>
       {children}
     </button>
   );
@@ -88,14 +81,7 @@ export function CardButtonLink({
   ...props
 }: React.ComponentProps<typeof Link>) {
   return (
-    <Link
-      className={cn(
-        "flex h-14 w-full items-center justify-center rounded-card bg-card",
-        "text-meta font-semibold text-ink-2 transition-colors active:bg-track",
-        className,
-      )}
-      {...props}
-    >
+    <Link className={cardClasses(className)} {...props}>
       {children}
     </Link>
   );

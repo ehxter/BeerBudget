@@ -1,6 +1,10 @@
-const CACHE_NAME = "koskalak-v1";
+const CACHE_NAME = "koskalak-v2";
 
 self.addEventListener("install", (event) => {
+  // Take over from any already-installed worker on the next activate, rather
+  // than waiting for every open tab to close — a stale cache-first "/" is
+  // exactly what makes a landed change look like it "doesn't work".
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       // Basic offline shell
@@ -10,6 +14,17 @@ self.addEventListener("install", (event) => {
         "/favicon.ico"
       ]);
     })
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    Promise.all([
+      caches.keys().then((names) =>
+        Promise.all(names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))),
+      ),
+      self.clients.claim(),
+    ]),
   );
 });
 

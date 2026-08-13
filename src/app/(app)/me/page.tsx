@@ -1,113 +1,52 @@
-import { requireTripContext } from "@/lib/trip";
-import { prisma } from "@/lib/prisma";
-import { asCurrency, convertMinor } from "@/lib/money";
-import { getRateTable, rateFromTable } from "@/lib/rates/store";
-import { Screen, TabSwitcher, Divider, ButtonLink } from "@/components/ui";
-import { SignOutButton } from "@/components/SignOutButton";
+import { requireUser } from "@/lib/auth";
+import { getDashboard } from "@/lib/dashboard";
+import { BASE_CURRENCY } from "@/lib/money";
+import { Screen, Divider, ButtonLink } from "@/components/ui";
+import { SignOutButton } from "@/components/shell/SignOutButton";
 import { BudgetTracker } from "./BudgetTracker";
-import { PrivateNotes } from "./PrivateNotes";
-import { Vault } from "./Vault";
 
 export const metadata = { title: "Me · Istanbul" };
 export const dynamic = "force-dynamic";
 
 /**
- * Me, from the Figma "Me" frames: trip emoji + name in the header (same as
- * every other root screen — this is not a profile page), a Budget/Vault
- * segmented pair, and a header pill whose label depends on which tab is
- * active ("Add Budget" / "Add Item"). The frames' body content was an
- * unfinished placeholder (reused Trip event cards), so Budget and Vault below
- * are derived from the app's actual data, styled with the same tokens.
- * Private notes have no Figma destination of their own, so they live inside
- * the Vault tab rather than inventing a third segment.
+ * Me: the budget, and the account it belongs to. It reads the same dashboard
+ * as Home, so the two can't disagree about what's left.
  */
 export default async function MePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; action?: string }>;
+  searchParams: Promise<{ action?: string }>;
 }) {
-  const { trip, user } = await requireTripContext();
-  const { tab, action } = await searchParams;
-  const currentTab = tab === "vault" ? "vault" : "budget";
-  const shouldOpen = action === "new";
+  const user = await requireUser();
+  const { action } = await searchParams;
 
-  const [budget, notes, vaultItems, expenses] = await Promise.all([
-    prisma.budget.findUnique({
-      where: { userId_tripId: { userId: user.id, tripId: trip.id } },
-    }),
-    prisma.privateNote.findMany({
-      where: { userId: user.id },
-      orderBy: { updatedAt: "desc" },
-    }),
-    prisma.privateVaultItem.findMany({
-      where: { userId: user.id },
-      include: { files: true },
-      orderBy: { updatedAt: "desc" },
-    }),
-    prisma.expense.findMany({
-      where: { tripId: trip.id, isShared: false, paidById: user.id },
-      select: { baseAmountMinor: true },
-    }),
-  ]);
-
-  const budgetCurrency = asCurrency(budget?.currency ?? trip.baseCurrency);
-
-  // Private expenses are stored in the trip's base currency. A personal budget
-  // can be set in a different one, so the total has to be converted before the
-  // two are compared — otherwise the bar measures lira against dollars.
-  const spentBaseMinor = expenses.reduce((t, e) => t + e.baseAmountMinor, 0);
-  const rates = await getRateTable();
-  const spentMinor = convertMinor(
-    spentBaseMinor,
-    trip.baseCurrency,
-    budgetCurrency,
-    rateFromTable(rates, trip.baseCurrency, budgetCurrency),
-  );
+  const data = await getDashboard(user.id);
+  const entered = data.budgetEntered;
 
   return (
     <Screen
-      trip={{ emoji: trip.emoji, name: trip.name }}
+      logo
       gap={4}
       className="animate-rise"
-      action={
-        currentTab === "budget" ? (
-          <ButtonLink href="/me?tab=budget&action=new">Add Budget</ButtonLink>
-        ) : (
-          <ButtonLink href="/me?tab=vault&action=new">Add Item</ButtonLink>
-        )
-      }
+      action={<ButtonLink href="/me?action=new">Add Budget</ButtonLink>}
     >
-      <TabSwitcher
-        name="tab"
-        defaultValue="budget"
-        options={[
-          { value: "budget", label: "Budget" },
-          { value: "vault", label: "Vault" },
-        ]}
+      <BudgetTracker
+        // Remounts when the saved budget changes, which closes the editor
+        // without a setState-inside-effect.
+        key={`${data.budgetMinor}-${entered?.currency ?? BASE_CURRENCY}`}
+        budgetMinor={data.budgetMinor}
+        enteredMinor={entered?.amountMinor ?? 0}
+        enteredCurrency={entered?.currency ?? BASE_CURRENCY}
+        spentMinor={data.spentMinor}
+        debtMinor={data.debt.netMinor}
+        startOpen={action === "new"}
       />
-
-      <div className="animate-fade-in flex flex-col gap-4">
-        {currentTab === "budget" ? (
-          <BudgetTracker
-            // Remounts when the saved budget changes, which closes the editor
-            // without a setState-inside-effect.
-            key={`${budget?.amountMinor ?? 0}-${budgetCurrency}`}
-            budgetMinor={budget?.amountMinor ?? 0}
-            budgetCurrency={budgetCurrency}
-            spentMinor={spentMinor}
-            startOpen={shouldOpen}
-          />
-        ) : (
-          <>
-            <Vault items={vaultItems} startOpen={shouldOpen} />
-            <PrivateNotes notes={notes} />
-          </>
-        )}
-      </div>
 
       <div className="flex flex-col gap-4 pt-2">
         <Divider soft />
-        <p className="px-1 text-label text-ink-5">{user.email}</p>
+        <p className="px-1 text-label text-ink-5">
+          {user.name} · {user.email}
+        </p>
         <SignOutButton />
       </div>
     </Screen>

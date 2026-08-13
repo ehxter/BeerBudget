@@ -1,11 +1,17 @@
-// Istanbul Trip Companion — single-trip, two-person schema.
+// Istanbul — a private spending companion. One account, one private space.
+//
+// There is no sharing of any kind: no trips, no memberships, no joint
+// expenses. Every row below hangs off a single `userId`, which is the only
+// thing that grants access to it.
 //
 // Money is ALWAYS stored as an integer in the currency's minor unit
 // (TRY/USD/EUR = 1/100, TOMAN = 1/1). Never store money as a float.
-// Amounts that need to be aggregated across currencies also carry a
-// pre-computed `base*Minor` in the trip's base currency, converted with the
-// rate that was in effect when the row was written — so historical totals
-// don't shift when today's rate moves.
+//
+// Turkish Lira is the base currency of the whole app. Anything entered in
+// another currency keeps what was actually paid (`amountMinor` + `currency`)
+// *and* carries a `baseAmountMinor` in TRY, converted with the rate that was
+// in effect when the row was written — so historical totals don't shift when
+// today's rate moves.
 //
 // Iranian currency is represented as TOMAN everywhere (1 Toman = 10 IRR).
 // IRR never appears in the database, the API, or the UI.
@@ -26,99 +32,87 @@ model User {
   passwordHash String
   createdAt    DateTime @default(now())
 
-  memberships    TripMember[]
-  expensesPaid   Expense[]             @relation("ExpensePayer")
-  expenseShares  ExpenseParticipant[]
+  budget         Budget?
+  expenses       Expense[]
   exchanges      ExchangeTransaction[]
-  budgets        Budget[]
-  privateNotes   PrivateNote[]
-  vaultItems     PrivateVaultItem[]
+  checklistItems ChecklistItem[]
   vaultFiles     VaultFile[]
-  checkedItems   ChecklistItem[]       @relation("ChecklistCompleter")
-}
-
-model Trip {
-  id           String   @id @default(cuid())
-  name         String
-  /** Rendered before the trip name in every screen header, per the design. */
-  emoji        String   @default("🕌")
-  destination  String   @default("Istanbul, Turkey")
-  startDate    DateTime
-  endDate      DateTime
-  baseCurrency String   @default("TRY")
-  budgetMinor  Int      @default(0)
-  createdAt    DateTime @default(now())
-
-  members    TripMember[]
-  expenses   Expense[]
-  exchanges  ExchangeTransaction[]
-  itinerary  ItineraryItem[]
-  places     Place[]
-  checklist  ChecklistItem[]
-  sharedInfo SharedInfo[]
-  budgets    Budget[]
-}
-
-model TripMember {
-  id       String   @id @default(cuid())
-  userId   String
-  tripId   String
-  joinedAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, tripId])
-  @@index([tripId])
+  notes          Note[]
+  debts          Debt[]
 }
 
 model Expense {
-  id          String   @id @default(cuid())
-  tripId      String
-  paidById    String
+  id          String @id @default(cuid())
+  userId      String
   description String
   category    String
-  // Amount as entered, in `currency`.
+  // Amount as entered, in `currency` — what was actually handed over.
   amountMinor Int
   currency    String
-  // Same amount in the trip's base currency, frozen at the rate below.
+  // The same amount in Turkish Lira, frozen at the rate below.
   baseAmountMinor Int
   rateToBase      Float
-  spentAt     DateTime @default(now())
-  // Private expenses are visible only to `paidById` and count against that
-  // user's personal budget. Shared expenses count against the trip budget.
-  isShared    Boolean  @default(true)
-  splitMethod String   @default("EQUAL") // EQUAL | CUSTOM | SINGLE
-  note        String?
-  createdAt   DateTime @default(now())
+  spentAt         DateTime @default(now())
+  note            String?
+  createdAt       DateTime @default(now())
 
-  trip         Trip                 @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  paidBy       User                 @relation("ExpensePayer", fields: [paidById], references: [id], onDelete: Cascade)
-  participants ExpenseParticipant[]
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([tripId, spentAt])
-  @@index([tripId, isShared])
-  @@index([paidById])
+  @@index([userId, spentAt])
 }
 
-model ExpenseParticipant {
-  id        String @id @default(cuid())
-  expenseId String
-  userId    String
-  // This participant's share, in the expense's currency and in base currency.
-  shareMinor     Int
-  baseShareMinor Int
+// The one budget figure the Home widget burns down. It never resets — every
+// expense ever recorded counts against it.
+model Budget {
+  id     String @id @default(cuid())
+  userId String @unique
+  // What the traveler typed, in the currency they chose.
+  amountMinor Int
+  currency    String @default("TRY")
+  // The same figure in Lira, frozen when it was saved. The budget widget only
+  // ever renders this one.
+  baseAmountMinor Int
+  rateToBase      Float    @default(1)
+  updatedAt       DateTime @default(now()) @updatedAt
 
-  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 
-  @@unique([expenseId, userId])
-  @@index([userId])
+// Money owed between the traveler and their one travel companion. There is no
+// second account involved: this is a private ledger kept by, and visible only
+// to, its owner. The net balance is folded into the Home budget widget —
+// money coming back to you raises what you have left to spend, money you owe
+// lowers it.
+model Debt {
+  id     String @id @default(cuid())
+  userId String
+  // THEY_OWE — the friend owes the traveler (adds to the budget).
+  // I_OWE    — the traveler owes the friend (comes off the budget).
+  direction   String
+  amountMinor Int
+  currency    String
+  // In Lira, frozen at the rate below, so the net doesn't drift with the market.
+  baseAmountMinor Int
+  rateToBase      Float
+  description     String?
+  occurredAt      DateTime  @default(now())
+  // Set once the debt is squared up. Settled rows stay for the record but
+  // drop out of the net balance and out of the budget.
+  settledAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+  @@index([userId, settledAt])
 }
 
 // Cached reference rates, anchored to Toman because that is the unit the
 // upstream provider quotes everything in. A cross rate between any two
 // currencies is tomanPerUnit[from] / tomanPerUnit[to].
+//
+// The only table in the schema with no owner — rates are public facts, not
+// anybody's private data.
 model ExchangeRate {
   id           String   @id @default(cuid())
   currency     String
@@ -132,7 +126,6 @@ model ExchangeRate {
 // A currency exchange the traveler actually performed, at a real shop rate.
 model ExchangeTransaction {
   id              String   @id @default(cuid())
-  tripId          String
   userId          String
   fromCurrency    String
   toCurrency      String
@@ -145,142 +138,67 @@ model ExchangeTransaction {
   occurredAt      DateTime @default(now())
   createdAt       DateTime @default(now())
 
-  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([tripId, occurredAt])
+  @@index([userId, occurredAt])
 }
 
-model ItineraryItem {
-  id                 String   @id @default(cuid())
-  tripId             String
-  title              String
-  day                DateTime
-  startTime          String? // "HH:MM" local, no timezone maths needed
-  endTime            String?
-  location           String?
-  notes              String?
-  estimatedCostMinor Int?
-  estimatedCostCurrency String?
-  category           String   @default("OTHER") // FOOD | ACTIVITY | TRANSPORT | SHOPPING | OTHER
-  placeId            String?
-  sortOrder          Int      @default(0)
-  createdAt          DateTime @default(now())
-
-  trip  Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  place Place? @relation(fields: [placeId], references: [id], onDelete: SetNull)
-
-  @@index([tripId, day, sortOrder])
-}
-
-model Place {
-  id                    String   @id @default(cuid())
-  tripId                String
-  name                  String
-  category              String   @default("OTHER") // RESTAURANT | CAFE | ATTRACTION | SHOPPING | NEIGHBORHOOD | ACTIVITY | OTHER
-  address               String?
-  mapUrl                String?
-  notes                 String?
-  estimatedPriceMinor   Int?
-  estimatedPriceCurrency String?
-  status                String   @default("WANT_TO_VISIT") // WANT_TO_VISIT | PLANNED | VISITED
-  createdAt             DateTime @default(now())
-
-  trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  itineraryItems ItineraryItem[]
-
-  @@index([tripId, status])
-}
-
+// The Vault's first tab: a private checklist.
 model ChecklistItem {
-  id            String    @id @default(cuid())
-  tripId        String
-  title         String
-  isDone        Boolean   @default(false)
-  completedById String?
-  completedAt   DateTime?
-  sortOrder     Int       @default(0)
-  createdAt     DateTime  @default(now())
-
-  trip        Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  completedBy User? @relation("ChecklistCompleter", fields: [completedById], references: [id], onDelete: SetNull)
-
-  @@index([tripId, sortOrder])
-}
-
-model SharedInfo {
   id        String   @id @default(cuid())
-  tripId    String
-  category  String   @default("OTHER") // HOTEL | FLIGHT | TRANSPORT | EMERGENCY | RESERVATION | OTHER
+  userId    String
   title     String
-  content   String
+  isDone    Boolean  @default(false)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
-
-  @@index([tripId, sortOrder])
-}
-
-// Personal (private) budget — one per user per trip, never visible to the
-// other traveler.
-model Budget {
-  id          String @id @default(cuid())
-  userId      String
-  tripId      String
-  amountMinor Int
-  currency    String @default("USD")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, tripId])
+  @@index([userId, sortOrder])
 }
 
-model PrivateNote {
+// The Vault's third tab: free-form notes.
+//
+// There is no title, deliberately — a note is one piece of text, and forcing a
+// name on it turns a five-second capture into a small chore. The list shows
+// the body itself, so a note is identified by what it says.
+model Note {
   id        String   @id @default(cuid())
   userId    String
-  title     String
-  content   String
+  body      String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, updatedAt])
 }
 
-model PrivateVaultItem {
-  id        String   @id @default(cuid())
-  userId    String
-  category  String   @default("OTHER") // PASSPORT | ID | FLIGHT | HOTEL | INSURANCE | CONTACT | SIM | BOOKING | OTHER
-  title     String
-  content   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  files VaultFile[]
-
-  @@index([userId, updatedAt])
-}
-
-// Uploaded documents live outside the web root; `storedName` is a random
-// filename on disk. Downloads go through an authenticated route that checks
-// `userId` before streaming the file.
+// The Vault's second tab: arbitrary files kept on the server's disk.
+//
+// The bytes live outside the database under VAULT_DIR, named by `storedName` —
+// a random id, never anything derived from what the user uploaded, so a
+// crafted filename can't escape the directory or collide with another row.
 model VaultFile {
-  id          String   @id @default(cuid())
-  vaultItemId String
-  userId      String
-  filename    String
-  storedName  String   @unique
-  mimeType    String
-  sizeBytes   Int
-  createdAt   DateTime @default(now())
+  id     String @id @default(cuid())
+  userId String
+  /**
+   * The label the traveler gave it ("Hotel booking"), which is what the UI
+   * shows and what a download is named.
+   */
+  name String
+  /**
+   * The name of the file as uploaded. Kept for its extension and for the
+   * "originally: passport-scan.pdf" line; never used to build a path.
+   */
+  originalName String
+  /** Random on-disk basename under VAULT_DIR. */
+  storedName String @unique
+  mimeType   String
+  sizeBytes  Int
+  createdAt  DateTime @default(now())
 
-  vaultItem PrivateVaultItem @relation(fields: [vaultItemId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([vaultItemId])
+  @@index([userId, createdAt])
 }

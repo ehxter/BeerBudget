@@ -13,6 +13,15 @@ export const CURRENCIES = ["TRY", "USD", "EUR", "TOMAN"] as const;
 
 export type CurrencyCode = (typeof CURRENCIES)[number];
 
+/**
+ * Turkish Lira is the currency of the app, not a per-user setting.
+ *
+ * Anything entered in another currency is converted to Lira on the way in and
+ * stored alongside what was actually paid, so every total — the budget, the
+ * charts, the debt balance — can be added up without touching the network.
+ */
+export const BASE_CURRENCY: CurrencyCode = "TRY";
+
 type CurrencyMeta = {
   code: CurrencyCode;
   label: string;
