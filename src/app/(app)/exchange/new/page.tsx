@@ -4,7 +4,7 @@ import { BASE_CURRENCY } from "@/lib/money";
 import { Screen } from "@/components/ui";
 import { LogExchangeForm } from "./LogExchangeForm";
 
-export const metadata = { title: "Log exchange · Istanbul" };
+export const metadata = { title: "Log exchange · Beer Budget" };
 export const dynamic = "force-dynamic";
 
 export default async function NewExchangePage() {

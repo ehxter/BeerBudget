@@ -3,7 +3,7 @@ import { getRateTable } from "@/lib/rates/store";
 import { Screen } from "@/components/ui";
 import { AddExpenseForm } from "./AddExpenseForm";
 
-export const metadata = { title: "Add cost · Istanbul" };
+export const metadata = { title: "Add cost · Beer Budget" };
 export const dynamic = "force-dynamic";
 
 export default async function NewExpensePage() {

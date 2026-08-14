@@ -5,7 +5,7 @@ import { Checklist } from "./Checklist";
 import { Files } from "./Files";
 import { Notes } from "./Notes";
 
-export const metadata = { title: "Vault · Istanbul" };
+export const metadata = { title: "Vault · Beer Budget" };
 export const dynamic = "force-dynamic";
 
 /**

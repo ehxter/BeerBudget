@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { SpendingScreen } from "./SpendingScreen";
 import { listDebts } from "../settlement/query";
 
-export const metadata = { title: "Spending · Istanbul" };
+export const metadata = { title: "Spending · Beer Budget" };
 export const dynamic = "force-dynamic";
 
 /**

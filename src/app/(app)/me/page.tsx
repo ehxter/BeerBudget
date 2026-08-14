@@ -6,7 +6,7 @@ import { Screen, Divider, ButtonLink, CardButtonLink } from "@/components/ui";
 import { SignOutButton } from "@/components/shell/SignOutButton";
 import { BudgetTracker } from "./BudgetTracker";
 
-export const metadata = { title: "Me · Istanbul" };
+export const metadata = { title: "Me · Beer Budget" };
 export const dynamic = "force-dynamic";
 
 /**

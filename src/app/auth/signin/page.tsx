@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { SignInForm } from "./SignInForm";
 
-export const metadata = { title: "Sign in · Istanbul" };
+export const metadata = { title: "Sign in · Beer Budget" };
 
 export default async function SignInPage() {
   if (await getCurrentUser()) redirect("/");
@@ -11,7 +11,7 @@ export default async function SignInPage() {
   return (
     <div className="animate-rise flex flex-col gap-8">
       <div>
-        <h1 className="text-title font-semibold text-ink">Istanbul</h1>
+        <h1 className="text-title font-semibold text-ink">Welcome back</h1>
         <p className="mt-1 text-meta text-ink-4">Sign in to your trip.</p>
       </div>
 

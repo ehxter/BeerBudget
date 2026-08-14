@@ -107,7 +107,24 @@
       "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --no-sandbox --hide-scrollbars --virtual-time-budget=6000 --window-size=390,820 --screenshot=/private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/final.png http://localhost:3000/__frame.html)",
       "Bash(git check-ignore *)",
       "Bash(sqlite3 dev.db \"select count\\(*\\) || ' users' from User; select ' - '||name||' <'||email||'>' from User;\")",
-      "Bash(curl -s -m 30 http://localhost:3000/auth/signup)"
+      "Bash(curl -s -m 30 http://localhost:3000/auth/signup)",
+      "Bash(curl -s -m 20 https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json -o /private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/usd.json -w 'http=%{http_code}\\\\n')",
+      "Bash(curl -s -m 20 https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/irr.json -o /private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/irr.json -w 'http=%{http_code}\\\\n')",
+      "Bash(curl -s -m 20 https://open.er-api.com/v6/latest/USD -o /private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/er.json -w 'er-api http=%{http_code}\\\\n')",
+      "Bash(curl -s -m 20 \"https://api.frankfurter.dev/v1/latest?base=USD&symbols=IRR\" -w \" frankfurter http=%{http_code}\\\\n\")",
+      "Bash(sqlite3 dev.db \"select '  BrsApi : 1 USD = '||cast\\(tomanPerUnit as int\\)||' Toman = '||cast\\(tomanPerUnit*10 as int\\)||' IRR' from ExchangeRate where currency='USD' and source='BRSAPI';\")",
+      "Bash(curl -s -m 20 \"https://api.github.com/repos/amirh0ss3in/tgju_api\")",
+      "Bash(curl -s -m 20 \"https://api.github.com/repos/amirh0ss3in/tgju_api/contents/\")",
+      "Bash(curl -s -m 20 https://raw.githubusercontent.com/amirh0ss3in/tgju_api/master/tgju_api.py -o /private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/tgju_api.py -w 'http=%{http_code}\\\\n')",
+      "Bash(curl -s -m 25 -A 'Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/124.0 Safari/537.36' https://call1.tgju.org/ajax.json -o /private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/ajax.json)",
+      "Bash(curl -s -m 25 -A 'Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/124.0 Safari/537.36' https://api.tgju.org/v1/market/indicator/summary-table-data/price_dollar_rl -o /private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/summary.json)",
+      "Bash(rm -f /private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/*.ts)",
+      "Bash(sqlite3 dev.db \"select 'mode: '||mode from RateSettings; select 'ExchangeRate: '||currency||' '||source||' '||cast\\(tomanPerUnit as int\\) from ExchangeRate order by source, currency;\")",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --no-sandbox --hide-scrollbars --virtual-time-budget=6000 --window-size=390,600 --screenshot=/private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/signin.png http://localhost:3000/__frame.html)",
+      "Bash(curl -s -m 40 \"http://localhost:3000/auth/signin?t=$\\(date +%s\\)\")",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --no-sandbox --hide-scrollbars --virtual-time-budget=6000 --window-size=390,600 --screenshot=/private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/signin2.png http://localhost:3000/__frame.html)",
+      "Bash(curl -s -m 40 \"http://localhost:3000/auth/signup?t=$\\(date +%s\\)\")",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --no-sandbox --hide-scrollbars --virtual-time-budget=6000 --window-size=390,600 --screenshot=/private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/signup2.png http://localhost:3000/__frame.html)"
     ]
   }
 }

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { SignUpForm } from "./SignUpForm";
 
-export const metadata = { title: "Create account · Istanbul" };
+export const metadata = { title: "Create account · Beer Budget" };
 
 /**
  * Sign-up is open to anyone.

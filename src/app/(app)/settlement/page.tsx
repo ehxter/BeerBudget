@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { SettlementScreen } from "./SettlementScreen";
 import { listDebts } from "./query";
 
-export const metadata = { title: "Settlement · Istanbul" };
+export const metadata = { title: "Settlement · Beer Budget" };
 export const dynamic = "force-dynamic";
 
 /**

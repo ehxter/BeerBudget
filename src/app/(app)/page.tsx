@@ -15,7 +15,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
-export const metadata = { title: "Istanbul" };
+export const metadata = { title: "Beer Budget" };
 export const dynamic = "force-dynamic";
 
 /**

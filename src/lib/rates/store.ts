@@ -3,6 +3,7 @@ import "server-only";
 import { CURRENCIES, type CurrencyCode } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { BrsApiProvider } from "./brsapi";
+import { TgjuProvider } from "./tgju";
 import { fetchUsdRatesWithFailover, FX_CURRENCIES } from "./fx";
 import type { ExchangeRateProvider } from "./provider";
 
@@ -46,8 +47,25 @@ const BACKGROUND_REFRESH_TIMEOUT_MS = 20_000;
  */
 const FAILURE_COOLDOWN_MS = 60_000;
 
+/**
+ * Toman providers, in the order they are trusted.
+ *
+ * TGJU is the Tehran market feed the rest of the Iranian price sites quote,
+ * and it needs no API key — one less thing that can silently expire. BrsApi
+ * sits behind it as the same numbers over a different route: the two agree to
+ * the Rial, so this is redundancy of transport rather than a second opinion.
+ * Whichever answers first wins; the traveler's own rate is behind both.
+ */
+export const TOMAN_SOURCES = ["TGJU", "BRSAPI"] as const;
+export type TomanSource = (typeof TOMAN_SOURCES)[number];
+
+/** @deprecated Kept as the BrsApi row's source name; prefer TOMAN_SOURCES. */
 export const PROVIDER_SOURCE = "BRSAPI";
 export const MANUAL_SOURCE = "MANUAL";
+
+function isTomanSource(value: string): value is TomanSource {
+  return (TOMAN_SOURCES as readonly string[]).includes(value);
+}
 
 const SETTINGS_ID = "singleton";
 
@@ -69,8 +87,15 @@ const BOOTSTRAP_TOMAN_RATES: Record<CurrencyCode, number> = {
   EUR: 214_250,
 };
 
-/** Where a given currency's number actually came from. */
+/**
+ * Where a given currency's number came from, at the level the UI cares about.
+ * Which *provider* answered is reported separately as `anchorSource`, so a
+ * screen can say "TGJU" without every consumer having to know the roster.
+ */
 export type RateOrigin = "manual" | "provider" | "fx" | "bootstrap";
+
+/** One rung of the resolution ladder: a Toman provider, the traveler, or a cross rate. */
+type ResolveStep = TomanSource | typeof MANUAL_SOURCE | "fx";
 
 export type RateTable = {
   /** Toman per 1 major unit of each currency. */
@@ -79,8 +104,10 @@ export type RateTable = {
   mode: RateMode;
   /** Where the dollar — and so the whole table — was anchored, and when. */
   anchorOrigin: RateOrigin;
+  /** Which one specifically: "TGJU", "BRSAPI", "MANUAL", or null for bootstrap. */
+  anchorSource: string | null;
   anchorAt: Date | null;
-  /** When the BrsApi cache was last written, if ever. */
+  /** The most recent write by any Toman provider, if ever. */
   fetchedAt: Date | null;
   /** When the cross rates were last written, and which provider answered. */
   fxFetchedAt: Date | null;
@@ -108,7 +135,11 @@ function isExpired(at: Date | null, ms: number): boolean {
   return !at || Date.now() - at.getTime() > ms;
 }
 
-const provider: ExchangeRateProvider = new BrsApiProvider();
+/** Keyed by source name so a refresh can record who actually answered. */
+const TOMAN_PROVIDERS: Record<TomanSource, ExchangeRateProvider> = {
+  TGJU: new TgjuProvider(),
+  BRSAPI: new BrsApiProvider(),
+};
 
 /**
  * Per-provider refresh state: the call currently running, so parallel requests
@@ -185,13 +216,43 @@ async function refreshThrough(
   return gate.inFlight;
 }
 
-/** Pulls Toman prices from BrsApi and writes the cache. */
+/**
+ * Pulls Toman prices from the first provider that answers, and writes the
+ * cache under that provider's own name.
+ *
+ * Sequential, stopping at the first success: the two carry identical numbers,
+ * so fetching both would buy nothing and cost a second request. A provider
+ * that fails leaves its previous rows untouched rather than blanking them —
+ * yesterday's BrsApi row is still worth having if TGJU comes back empty.
+ */
 export async function refreshRates({
   timeoutMs = REQUEST_REFRESH_TIMEOUT_MS,
   force = false,
 }: RefreshOptions = {}): Promise<boolean> {
-  return refreshThrough(rateGate, PROVIDER_SOURCE, timeoutMs, force, async (signal) => {
-    const rates = await provider.fetchTomanRates(signal);
+  return refreshThrough(rateGate, "toman", timeoutMs, force, async (signal) => {
+    const failures: string[] = [];
+    let winner: { source: TomanSource; rates: Awaited<
+      ReturnType<ExchangeRateProvider["fetchTomanRates"]>
+    > } | null = null;
+
+    for (const source of TOMAN_SOURCES) {
+      // Our own deadline has passed; trying the next one would overrun it.
+      if (signal.aborted) break;
+      try {
+        winner = { source, rates: await TOMAN_PROVIDERS[source].fetchTomanRates(signal) };
+        break;
+      } catch (error) {
+        failures.push(
+          `${source}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    if (!winner) {
+      throw new Error(`no Toman provider reachable (${failures.join("; ")})`);
+    }
+
+    const { source, rates } = winner;
     const fetchedAt = new Date();
 
     await prisma.$transaction(
@@ -199,10 +260,10 @@ export async function refreshRates({
         .filter(([, value]) => Number.isFinite(value) && (value as number) > 0)
         .map(([currency, value]) =>
           prisma.exchangeRate.upsert({
-            where: { currency_source: { currency, source: PROVIDER_SOURCE } },
+            where: { currency_source: { currency, source } },
             create: {
               currency,
-              source: PROVIDER_SOURCE,
+              source,
               tomanPerUnit: value as number,
               fetchedAt,
             },
@@ -299,21 +360,29 @@ async function readCache() {
     prisma.rateSettings.findUnique({ where: { id: SETTINGS_ID } }),
   ]);
 
-  const providerRows = new Map<string, RateRow>();
+  // One bucket per Toman provider, kept apart so the priority order below is
+  // the only thing that decides which one is read.
+  const providerRows = new Map<TomanSource, Map<string, RateRow>>(
+    TOMAN_SOURCES.map((source) => [source, new Map<string, RateRow>()]),
+  );
   const manualRows = new Map<string, RateRow>();
 
   for (const row of rows) {
-    if (row.source !== MANUAL_SOURCE && row.source !== PROVIDER_SOURCE) continue;
-    const target = row.source === MANUAL_SOURCE ? manualRows : providerRows;
-    target.set(row.currency, {
-      tomanPerUnit: row.tomanPerUnit,
-      fetchedAt: row.fetchedAt,
-    });
+    const entry = { tomanPerUnit: row.tomanPerUnit, fetchedAt: row.fetchedAt };
+    if (row.source === MANUAL_SOURCE) {
+      manualRows.set(row.currency, entry);
+    } else if (isTomanSource(row.source)) {
+      providerRows.get(row.source)?.set(row.currency, entry);
+    }
   }
 
+  // The freshest provider write of any kind — what the TTL is measured against,
+  // so a working secondary keeps the cache from being considered expired.
   let fetchedAt: Date | null = null;
-  for (const row of providerRows.values()) {
-    if (!fetchedAt || row.fetchedAt < fetchedAt) fetchedAt = row.fetchedAt;
+  for (const bucket of providerRows.values()) {
+    for (const row of bucket.values()) {
+      if (!fetchedAt || row.fetchedAt > fetchedAt) fetchedAt = row.fetchedAt;
+    }
   }
 
   return {
@@ -355,22 +424,27 @@ export async function getRateTable(): Promise<RateTable> {
 
   const { manualRows, providerRows, fx } = cache;
 
-  const direct = (currency: CurrencyCode, from: "manual" | "provider") => {
-    const row = (from === "manual" ? manualRows : providerRows).get(currency);
+  const direct = (currency: CurrencyCode, from: Exclude<ResolveStep, "fx">) => {
+    const bucket = from === MANUAL_SOURCE ? manualRows : providerRows.get(from);
+    const row = bucket?.get(currency);
     return row && row.tomanPerUnit > 0 ? row : null;
   };
 
-  // Mode decides who is asked first. FX fills in whatever that source can't
-  // answer — which, in MANUAL mode, is everything except the dollar itself.
-  const order =
+  // Mode decides who is asked first. In AUTO that is the provider order —
+  // TGJU, then BrsApi, then the traveler's own rate as the last resort before
+  // anything is derived. Flipping the toggle moves the traveler to the front.
+  // FX fills in whatever the winner can't answer, which in MANUAL mode is
+  // everything except the dollar itself.
+  const order: readonly ResolveStep[] =
     mode === "MANUAL"
-      ? (["manual", "fx", "provider"] as const)
-      : (["provider", "fx", "manual"] as const);
+      ? [MANUAL_SOURCE, "fx", ...TOMAN_SOURCES]
+      : [...TOMAN_SOURCES, MANUAL_SOURCE, "fx"];
 
   // The dollar is resolved first and alone: it is what the cross rates are
   // quoted against, so whichever source sets it decides the whole table.
   let anchorToman = 0;
   let anchorOrigin: RateOrigin = "bootstrap";
+  let anchorSource: string | null = null;
   let anchorAt: Date | null = null;
 
   for (const from of order) {
@@ -378,7 +452,8 @@ export async function getRateTable(): Promise<RateTable> {
     const row = direct("USD", from);
     if (row) {
       anchorToman = row.tomanPerUnit;
-      anchorOrigin = from;
+      anchorOrigin = from === MANUAL_SOURCE ? "manual" : "provider";
+      anchorSource = from;
       anchorAt = row.fetchedAt;
       break;
     }
@@ -422,7 +497,7 @@ export async function getRateTable(): Promise<RateTable> {
       const row = direct(currency, from);
       if (row) {
         resolved = row.tomanPerUnit;
-        resolvedOrigin = from;
+        resolvedOrigin = from === MANUAL_SOURCE ? "manual" : "provider";
         break;
       }
     }
@@ -442,6 +517,7 @@ export async function getRateTable(): Promise<RateTable> {
     origin,
     mode,
     anchorOrigin,
+    anchorSource,
     anchorAt,
     fetchedAt: cache.fetchedAt,
     fxFetchedAt: fx?.fetchedAt ?? null,
@@ -473,8 +549,14 @@ export async function getRate(from: CurrencyCode, to: CurrencyCode): Promise<num
 
 export type RateSources = {
   mode: RateMode;
-  /** BrsApi's dollar price, and when the cache was written. */
-  provider: { usdToman: number | null; fetchedAt: Date | null };
+  /** Every Toman provider in priority order, with what each last said. */
+  toman: {
+    source: TomanSource;
+    usdToman: number | null;
+    fetchedAt: Date | null;
+    /** True for the one actually pricing the app right now. */
+    active: boolean;
+  }[];
   /** The traveler's own dollar price, if they have saved one. */
   manual: { tomanPerUnit: number; fetchedAt: Date } | null;
   /** The winning cross-rate set: who answered, when, and USD per unit. */
@@ -492,14 +574,27 @@ export type RateSources = {
 export async function getRateSources(): Promise<RateSources> {
   const cache = await readCache();
   const manual = cache.manualRows.get("USD");
-  const provider = cache.providerRows.get("USD");
+
+  // The active one is the first with a usable dollar — the same walk
+  // getRateTable does, so the screen can't disagree with the converter.
+  const usable = (source: TomanSource) => {
+    const row = cache.providerRows.get(source)?.get("USD");
+    return row && row.tomanPerUnit > 0 ? row : null;
+  };
+  const activeSource =
+    cache.mode === "AUTO" ? TOMAN_SOURCES.find((s) => usable(s)) : undefined;
 
   return {
     mode: cache.mode,
-    provider: {
-      usdToman: provider && provider.tomanPerUnit > 0 ? provider.tomanPerUnit : null,
-      fetchedAt: cache.fetchedAt,
-    },
+    toman: TOMAN_SOURCES.map((source) => {
+      const row = usable(source);
+      return {
+        source,
+        usdToman: row?.tomanPerUnit ?? null,
+        fetchedAt: row?.fetchedAt ?? null,
+        active: source === activeSource,
+      };
+    }),
     manual:
       manual && manual.tomanPerUnit > 0
         ? { tomanPerUnit: manual.tomanPerUnit, fetchedAt: manual.fetchedAt }

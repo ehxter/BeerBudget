@@ -39,7 +39,7 @@ export function PageHeader({
         {logo ? (
           <Image
             src="/logo.svg"
-            alt="Istanbul"
+            alt="Beer Budget"
             width={160}
             height={30}
             priority

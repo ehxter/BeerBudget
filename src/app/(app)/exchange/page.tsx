@@ -8,7 +8,7 @@ import { ExchangeList } from "./ExchangeList";
 import { RefreshRates } from "./RefreshRates";
 import { RateSourceToggle } from "./RateSourceToggle";
 
-export const metadata = { title: "Exchange · Istanbul" };
+export const metadata = { title: "Exchange · Beer Budget" };
 export const dynamic = "force-dynamic";
 
 /**
