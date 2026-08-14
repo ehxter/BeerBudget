@@ -105,7 +105,9 @@
       "Bash(curl -s -o /dev/null -w \"harness http=%{http_code}\\\\n\" -m 20 http://localhost:3000/__shot.html)",
       "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --no-sandbox --hide-scrollbars --virtual-time-budget=4000 --window-size=390,900 --screenshot=/private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/ex_real.png http://localhost:3000/__shot.html)",
       "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --no-sandbox --hide-scrollbars --virtual-time-budget=6000 --window-size=390,820 --screenshot=/private/tmp/claude-501/-Users-ehsan-Documents-VS-Code-Istanbul/f21cd148-ddeb-4fd7-a5ce-7663de956e32/scratchpad/final.png http://localhost:3000/__frame.html)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(sqlite3 dev.db \"select count\\(*\\) || ' users' from User; select ' - '||name||' <'||email||'>' from User;\")",
+      "Bash(curl -s -m 30 http://localhost:3000/auth/signup)"
     ]
   }
 }

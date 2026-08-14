@@ -2,8 +2,8 @@
 
 A mobile-only web app for tracking a trip's spending. **Every account is a
 sealed private space**: no trips, no memberships, no shared rows, no invites.
-Two people can both use the same deployment and neither can see anything of the
-other's.
+Sign-up is open, and any number of people can share one deployment without any
+of them seeing anything of anyone else's.
 
 **Turkish Lira is the currency of the app.** A cost paid in dollars, euros, or
 toman keeps what was actually handed over *and* a Lira equivalent, converted at
