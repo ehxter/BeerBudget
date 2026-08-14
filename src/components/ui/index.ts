@@ -7,6 +7,7 @@ export { CategoryBars } from "./CategoryBars";
 export { SubmitButton } from "./SubmitButton";
 export { DeleteButton } from "./DeleteButton";
 export { Sheet, SheetDisclosure } from "./Sheet";
+export { Switch } from "./Switch";
 export { CurrencyChips, Chips, Tabs, TabBar } from "./Segmented";
 export { PageHeader } from "./PageHeader";
 export { CostItem, Dot } from "./CostItem";

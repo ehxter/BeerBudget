@@ -1,11 +1,12 @@
 import { requireUser } from "@/lib/auth";
-import { getRateTable } from "@/lib/rates/store";
+import { getManualRate, getRateTable } from "@/lib/rates/store";
 import { BASE_CURRENCY } from "@/lib/money";
 import { Screen, ButtonLink, Tabs } from "@/components/ui";
 import { relativeTimeAgo } from "@/lib/format";
 import { Converter } from "./Converter";
 import { ExchangeList } from "./ExchangeList";
 import { RefreshRates } from "./RefreshRates";
+import { RateSourceToggle } from "./RateSourceToggle";
 
 export const metadata = { title: "Exchange · Istanbul" };
 export const dynamic = "force-dynamic";
@@ -18,15 +19,20 @@ export const dynamic = "force-dynamic";
  */
 export default async function ExchangePage() {
   const user = await requireUser();
-  const rates = await getRateTable();
+  const [rates, manualUsd] = await Promise.all([getRateTable(), getManualRate("USD")]);
 
-  // The rate store keeps working when the provider is down, so the UI has to
-  // say when it's serving older numbers rather than pass them off as current.
-  const freshness = rates.usingBootstrap
-    ? "Fallback rates — provider unreachable"
-    : rates.fetchedAt
-      ? `Updated ${relativeTimeAgo(rates.fetchedAt)}`
-      : "Not fetched yet";
+  // The rate store keeps working when a provider is down, so the UI has to say
+  // when it's serving older numbers rather than pass them off as current. It
+  // describes the dollar specifically, because that is the figure every other
+  // currency on the screen is derived from.
+  const freshness =
+    rates.anchorOrigin === "bootstrap"
+      ? "Fallback rates — nothing reached"
+      : !rates.anchorAt
+        ? "Not fetched yet"
+        : rates.anchorOrigin === "manual"
+          ? `Your rate · ${relativeTimeAgo(rates.anchorAt)}`
+          : `Updated ${relativeTimeAgo(rates.anchorAt)}`;
 
   return (
     <Screen
@@ -41,12 +47,16 @@ export default async function ExchangePage() {
             value: "converter",
             label: "Converter",
             content: (
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-4">
                 <Converter
                   baseCurrency={BASE_CURRENCY}
                   tomanPerUnit={rates.tomanPerUnit}
                 />
                 <RefreshRates freshness={freshness} />
+                <RateSourceToggle
+                  automatic={rates.mode === "AUTO"}
+                  manualUsdToman={manualUsd?.tomanPerUnit ?? null}
+                />
               </div>
             ),
           },

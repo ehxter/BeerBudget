@@ -1,7 +1,8 @@
+import { Coins } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getDashboard } from "@/lib/dashboard";
 import { BASE_CURRENCY } from "@/lib/money";
-import { Screen, Divider, ButtonLink } from "@/components/ui";
+import { Screen, Divider, ButtonLink, CardButtonLink } from "@/components/ui";
 import { SignOutButton } from "@/components/shell/SignOutButton";
 import { BudgetTracker } from "./BudgetTracker";
 
@@ -47,6 +48,10 @@ export default async function MePage({
         <p className="px-1 text-label text-ink-5">
           {user.name} · {user.email}
         </p>
+        <CardButtonLink href="/me/rates">
+          <Coins size={16} className="mr-1.5" />
+          Rates
+        </CardButtonLink>
         <SignOutButton />
       </div>
     </Screen>

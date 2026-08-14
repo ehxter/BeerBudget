@@ -123,6 +123,39 @@ model ExchangeRate {
   @@unique([currency, source])
 }
 
+// Cross rates between the non-Toman currencies, quoted against the dollar.
+//
+// Deliberately a separate table from ExchangeRate, because the two answer
+// different questions. What a dollar costs in Toman is an Iranian open-market
+// price that only BrsApi — or the traveler standing in front of a shop — can
+// tell us. What a dollar is worth in Euro or Lira is a global fact that
+// several free APIs agree on to four decimal places, so it can be sourced from
+// whichever one is reachable. TOMAN never appears in this table.
+//
+// Held as "USD per 1 unit" so pinning the table to Toman is a single multiply:
+//   tomanPerUnit[EUR] = usdPerUnit[EUR] * tomanPerUnit[USD]
+model FxRate {
+  id         String   @id @default(cuid())
+  currency   String
+  usdPerUnit Float
+  source     String // FRANKFURTER | ERAPI | CURRENCYAPI
+  fetchedAt  DateTime @default(now())
+
+  @@unique([currency, source])
+}
+
+// A single row, id "singleton". Whether the app prices things from the rate
+// providers or from the number the traveler typed in themselves.
+//
+// This is what the Exchange screen's toggle writes. It is not per-user: there
+// is one account, and a rate is a property of the world rather than of a
+// person.
+model RateSettings {
+  id        String   @id @default("singleton")
+  mode      String   @default("AUTO") // AUTO | MANUAL
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
 // A currency exchange the traveler actually performed, at a real shop rate.
 model ExchangeTransaction {
   id              String   @id @default(cuid())
