@@ -1,4 +1,4 @@
-# KOSKALAK — Istanbul Trip Companion
+# Beer Budget — Istanbul Trip Companion
 
 A mobile-only web app for tracking a trip's spending. **Every account is a
 sealed private space**: no trips, no memberships, no shared rows, no invites.
